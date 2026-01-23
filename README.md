@@ -5,7 +5,7 @@ A lightweight, SSR-first reactive UI library for building web applications with 
 ## Features
 
 - **SSR-First Architecture** - Server-side rendering with seamless client hydration
-- **Declarative Directives** - Vue-inspired template syntax (`c-text`, `c-for`, `c-if`, etc.)
+- **Declarative Directives** - Vue-inspired template syntax (`g-text`, `g-for`, `g-if`, etc.)
 - **Fine-Grained Reactivity** - Efficient updates without virtual DOM diffing
 - **Zero Dependencies** - Core library has no runtime dependencies (linkedom for SSR only)
 - **TypeScript Native** - Full type safety with excellent IDE support
@@ -34,7 +34,7 @@ registerDirective(registry, 'class', cclass);
 
 // Render HTML with state
 const html = await render(
-  '<ul><li c-for="item in items" c-text="item"></li></ul>',
+  '<ul><li g-for="item in items" g-text="item"></li></ul>',
   { items: ['Apple', 'Banana', 'Cherry'] },
   registry
 );
@@ -76,8 +76,8 @@ directive('my-app', myApp, { scope: true });
 
 ```html
 <my-app>
-  <p c-text="count"></p>
-  <button c-on="click: increment">+1</button>
+  <p g-text="count"></p>
+  <button g-on="click: increment">+1</button>
 </my-app>
 ```
 
@@ -85,13 +85,13 @@ directive('my-app', myApp, { scope: true });
 
 | Directive | Description | Example |
 |-----------|-------------|---------|
-| `c-text` | Set text content | `<span c-text="message"></span>` |
-| `c-show` | Toggle visibility | `<div c-show="isVisible">...</div>` |
-| `c-if` | Conditional render | `<p c-if="hasError">Error!</p>` |
-| `c-for` | Loop iteration | `<li c-for="item in items">...</li>` |
-| `c-class` | Dynamic classes | `<div c-class="{ active: isActive }">` |
-| `c-model` | Two-way binding | `<input c-model="name">` |
-| `c-on` | Event handling | `<button c-on="click: handleClick">` |
+| `g-text` | Set text content | `<span g-text="message"></span>` |
+| `g-show` | Toggle visibility | `<div g-show="isVisible">...</div>` |
+| `g-if` | Conditional render | `<p g-if="hasError">Error!</p>` |
+| `g-for` | Loop iteration | `<li g-for="item in items">...</li>` |
+| `g-class` | Dynamic classes | `<div g-class="{ active: isActive }">` |
+| `g-model` | Two-way binding | `<input g-model="name">` |
+| `g-on` | Event handling | `<button g-on="click: handleClick">` |
 
 ## Vite Integration
 

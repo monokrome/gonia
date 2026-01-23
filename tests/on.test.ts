@@ -4,7 +4,7 @@ import { on } from '../src/directives/on.js';
 import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
 
-describe('c-on directive', () => {
+describe('g-on directive', () => {
   let document: Document;
   let $eval: EvalFn;
 

@@ -227,7 +227,7 @@ describe('template directive', () => {
     console.error = (msg: string) => errors.push(msg);
 
     const templates = createMemoryRegistry({
-      recursive: '<div c-template="recursive"></div>'
+      recursive: '<div g-template="recursive"></div>'
     });
 
     const el = document.createElement('div');
@@ -237,7 +237,7 @@ describe('template directive', () => {
     await template('recursive' as Expression, el, templates);
 
     // Simulate processing the nested template directive
-    const nested = el.querySelector('[c-template]');
+    const nested = el.querySelector('[g-template]');
     if (nested) {
       await template('recursive' as Expression, nested as Element, templates);
     }

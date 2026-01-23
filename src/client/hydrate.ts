@@ -76,7 +76,7 @@ function getSelector(registry: DirectiveRegistry): string {
     const directiveSelectors: string[] = [];
 
     for (const name of registry.keys()) {
-      directiveSelectors.push(`[c-${name}]`);
+      directiveSelectors.push(`[g-${name}]`);
     }
 
     // Also match native <slot> elements
@@ -107,7 +107,7 @@ function getDirectivesForElement(
   const directives: DirectiveMatch[] = [];
 
   for (const [name, directive] of registry) {
-    const attr = el.getAttribute(`c-${name}`);
+    const attr = el.getAttribute(`g-${name}`);
     if (attr !== null) {
       directives.push({ name, directive, expr: attr });
     }
@@ -230,7 +230,7 @@ function processElement(
   el: Element,
   registry: DirectiveRegistry
 ): Promise<void> | void {
-  // Skip elements already processed by c-for (they have their own child scope)
+  // Skip elements already processed by g-for (they have their own child scope)
   if (el.hasAttribute(FOR_PROCESSED_ATTR)) {
     return;
   }
@@ -263,7 +263,7 @@ function processElement(
       return result;
     };
 
-    // STRUCTURAL directives (like c-for) take ownership of the element.
+    // STRUCTURAL directives (like g-for) take ownership of the element.
     // They remove the original and handle other directives on clones themselves.
     const isStructural = directive.priority === DirectivePriority.STRUCTURAL;
 
@@ -336,7 +336,7 @@ export function registerDirective(
   cachedSelector = null;
 
   if (document.body && initialized) {
-    const selector = `[c-${name}]`;
+    const selector = `[g-${name}]`;
     for (const el of document.querySelectorAll(selector)) {
       processElement(el, registry);
     }
@@ -498,7 +498,7 @@ export async function init(
 
   // Process existing elements synchronously, collecting promises from async directives.
   // Note: We collect elements first, but some may be removed during processing
-  // (e.g., c-for removes its template). Check isConnected before processing.
+  // (e.g., g-for removes its template). Check isConnected before processing.
   const elements = document.querySelectorAll(selector);
   const promises: Promise<void>[] = [];
 

@@ -5,7 +5,7 @@ import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
 import { reactive } from '../src/reactivity.js';
 
-describe('c-class directive', () => {
+describe('g-class directive', () => {
   let document: Document;
   let $eval: EvalFn;
 

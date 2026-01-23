@@ -37,11 +37,11 @@ describe('E2E: SSR → Hydration', () => {
     registerServerDirective(serverRegistry, 'if', cif);
 
     // Client registry (global)
-    directive('c-text', text);
-    directive('c-show', show);
-    directive('c-class', cclass);
-    directive('c-for', cfor);
-    directive('c-if', cif);
+    directive('g-text', text);
+    directive('g-show', show);
+    directive('g-class', cclass);
+    directive('g-for', cfor);
+    directive('g-if', cif);
   });
 
   afterEach(() => {
@@ -61,9 +61,9 @@ describe('E2E: SSR → Hydration', () => {
     return stateProvider;
   }
 
-  it('should render c-text on server with correct content', async () => {
+  it('should render g-text on server with correct content', async () => {
     const ssrHtml = await render(
-      '<span c-text="message"></span>',
+      '<span g-text="message"></span>',
       { message: 'Hello from server' },
       serverRegistry
     );
@@ -71,9 +71,9 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).toContain('>Hello from server</span>');
   });
 
-  it('should render c-show visible on server', async () => {
+  it('should render g-show visible on server', async () => {
     const ssrHtml = await render(
-      '<p c-show="visible">Content</p>',
+      '<p g-show="visible">Content</p>',
       { visible: true },
       serverRegistry
     );
@@ -81,9 +81,9 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).toContain('style="display:"');
   });
 
-  it('should render c-show hidden on server', async () => {
+  it('should render g-show hidden on server', async () => {
     const ssrHtml = await render(
-      '<p c-show="visible">Content</p>',
+      '<p g-show="visible">Content</p>',
       { visible: false },
       serverRegistry
     );
@@ -91,9 +91,9 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).toContain('style="display:none"');
   });
 
-  it('should render c-class on server', async () => {
+  it('should render g-class on server', async () => {
     const ssrHtml = await render(
-      '<button c-class="{ active: isActive, error: hasError }">Click</button>',
+      '<button g-class="{ active: isActive, error: hasError }">Click</button>',
       { isActive: true, hasError: false },
       serverRegistry
     );
@@ -103,15 +103,15 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).not.toContain('class="active error"');
   });
 
-  it('should render c-for on server with template wrapper', async () => {
+  it('should render g-for on server with template wrapper', async () => {
     const ssrHtml = await render(
-      '<ul><li c-for="item in items" c-text="item"></li></ul>',
+      '<ul><li g-for="item in items" g-text="item"></li></ul>',
       { items: ['Apple', 'Banana', 'Cherry'] },
       serverRegistry
     );
 
     // Should have template element
-    expect(ssrHtml).toContain('<template c-for="item in items">');
+    expect(ssrHtml).toContain('<template g-for="item in items">');
 
     // Should have rendered items
     expect(ssrHtml).toContain('>Apple</li>');
@@ -119,12 +119,12 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).toContain('>Cherry</li>');
 
     // Items should be marked as processed
-    expect(ssrHtml).toContain('data-c-for-processed');
+    expect(ssrHtml).toContain('data-g-for-processed');
   });
 
-  it('should render c-for with index on server', async () => {
+  it('should render g-for with index on server', async () => {
     const ssrHtml = await render(
-      '<span c-for="(item, idx) in items" c-text="idx + \': \' + item"></span>',
+      '<span g-for="(item, idx) in items" g-text="idx + \': \' + item"></span>',
       { items: ['a', 'b', 'c'] },
       serverRegistry
     );
@@ -134,9 +134,9 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).toContain('>2: c</span>');
   });
 
-  it('should render c-for with objects on server', async () => {
+  it('should render g-for with objects on server', async () => {
     const ssrHtml = await render(
-      '<div c-for="(value, key) in obj" c-text="key + \'=\' + value"></div>',
+      '<div g-for="(value, key) in obj" g-text="key + \'=\' + value"></div>',
       { obj: { name: 'Alice', age: '30' } },
       serverRegistry
     );
@@ -145,9 +145,9 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).toContain('>age=30</div>');
   });
 
-  it('should render c-if true on server', async () => {
+  it('should render g-if true on server', async () => {
     const ssrHtml = await render(
-      '<p c-if="show">Visible</p>',
+      '<p g-if="show">Visible</p>',
       { show: true },
       serverRegistry
     );
@@ -155,9 +155,9 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).toContain('Visible');
   });
 
-  it('should not render c-if false on server', async () => {
+  it('should not render g-if false on server', async () => {
     const ssrHtml = await render(
-      '<p c-if="show">Hidden</p>',
+      '<p g-if="show">Hidden</p>',
       { show: false },
       serverRegistry
     );
@@ -165,12 +165,12 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).not.toContain('Hidden');
   });
 
-  // TODO: Nested c-for with c-text needs investigation
+  // TODO: Nested g-for with g-text needs investigation
   // The child elements are being processed by the main render loop
-  // instead of c-for's processClonedElement
-  it.skip('should render nested c-for with c-text on server', async () => {
+  // instead of g-for's processClonedElement
+  it.skip('should render nested g-for with g-text on server', async () => {
     const ssrHtml = await render(
-      '<div c-for="user in users"><span c-text="user.name"></span></div>',
+      '<div g-for="user in users"><span g-text="user.name"></span></div>',
       {
         users: [
           { name: 'Alice' },
@@ -184,21 +184,21 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).toContain('>Bob</span>');
   });
 
-  it('should handle empty c-for array on server', async () => {
+  it('should handle empty g-for array on server', async () => {
     const ssrHtml = await render(
-      '<ul><li c-for="item in items" c-text="item"></li></ul>',
+      '<ul><li g-for="item in items" g-text="item"></li></ul>',
       { items: [] },
       serverRegistry
     );
 
     // Should have template but no rendered items
-    expect(ssrHtml).toContain('<template c-for="item in items">');
-    expect(ssrHtml).not.toContain('data-c-for-processed');
+    expect(ssrHtml).toContain('<template g-for="item in items">');
+    expect(ssrHtml).not.toContain('data-g-for-processed');
   });
 
   it('should handle multiple directives on same element on server', async () => {
     const ssrHtml = await render(
-      '<span c-text="text" c-class="{ highlight: isHighlighted }" c-show="isVisible">fallback</span>',
+      '<span g-text="text" g-class="{ highlight: isHighlighted }" g-show="isVisible">fallback</span>',
       { text: 'Hello', isHighlighted: true, isVisible: true },
       serverRegistry
     );
@@ -222,11 +222,11 @@ describe('E2E: Hydration preserves SSR content', () => {
     registerServerDirective(serverRegistry, 'for', cfor);
     registerServerDirective(serverRegistry, 'if', cif);
 
-    directive('c-text', text);
-    directive('c-show', show);
-    directive('c-class', cclass);
-    directive('c-for', cfor);
-    directive('c-if', cif);
+    directive('g-text', text);
+    directive('g-show', show);
+    directive('g-class', cclass);
+    directive('g-for', cfor);
+    directive('g-if', cif);
   });
 
   afterEach(() => {
@@ -234,10 +234,10 @@ describe('E2E: Hydration preserves SSR content', () => {
     clearDirectives();
   });
 
-  it('should not duplicate c-text content during hydration', async () => {
+  it('should not duplicate g-text content during hydration', async () => {
     // Server renders HTML
     const ssrHtml = await render(
-      '<span c-text="message"></span>',
+      '<span g-text="message"></span>',
       { message: 'Hello World' },
       serverRegistry
     );
@@ -269,16 +269,16 @@ describe('E2E: Hydration preserves SSR content', () => {
     expect(document.querySelectorAll('span').length).toBe(1);
   });
 
-  it('should not duplicate c-for items during hydration', async () => {
-    // Server renders c-for
+  it('should not duplicate g-for items during hydration', async () => {
+    // Server renders g-for
     const ssrHtml = await render(
-      '<ul><li c-for="item in items" c-text="item"></li></ul>',
+      '<ul><li g-for="item in items" g-text="item"></li></ul>',
       { items: ['Apple', 'Banana'] },
       serverRegistry
     );
 
     // Should have template + 2 rendered items
-    expect(ssrHtml).toContain('<template c-for="item in items">');
+    expect(ssrHtml).toContain('<template g-for="item in items">');
     expect(ssrHtml).toContain('>Apple</li>');
     expect(ssrHtml).toContain('>Banana</li>');
 
@@ -300,7 +300,7 @@ describe('E2E: Hydration preserves SSR content', () => {
     await new Promise(r => setTimeout(r, 10));
 
     // After hydration, should have same number of items (2 rendered + 1 in template)
-    const afterItems = document.querySelectorAll('li:not([data-c-for-template])');
+    const afterItems = document.querySelectorAll('li:not([data-g-for-template])');
 
     // Should still have exactly 2 items, not 4 (which would indicate duplication)
     expect(afterItems.length).toBe(2);
@@ -308,10 +308,10 @@ describe('E2E: Hydration preserves SSR content', () => {
     expect(afterItems[1].textContent).toBe('Banana');
   });
 
-  it('should preserve c-show display state from SSR', async () => {
+  it('should preserve g-show display state from SSR', async () => {
     // Server renders with visible=false
     const ssrHtml = await render(
-      '<p c-show="visible">Hidden content</p>',
+      '<p g-show="visible">Hidden content</p>',
       { visible: false },
       serverRegistry
     );
@@ -334,9 +334,9 @@ describe('E2E: Hydration preserves SSR content', () => {
     expect(p.style.display).toBe('none');
   });
 
-  it('should preserve c-class classes from SSR', async () => {
+  it('should preserve g-class classes from SSR', async () => {
     const ssrHtml = await render(
-      '<button c-class="{ active: isActive }">Click</button>',
+      '<button g-class="{ active: isActive }">Click</button>',
       { isActive: true },
       serverRegistry
     );
@@ -363,11 +363,11 @@ describe('E2E: Hydration preserves SSR content', () => {
 describe('E2E: Client hydration initialization', () => {
   beforeEach(() => {
     clearDirectives();
-    directive('c-text', text);
-    directive('c-show', show);
-    directive('c-class', cclass);
-    directive('c-for', cfor);
-    directive('c-if', cif);
+    directive('g-text', text);
+    directive('g-show', show);
+    directive('g-class', cclass);
+    directive('g-for', cfor);
+    directive('g-if', cif);
   });
 
   afterEach(() => {
@@ -375,7 +375,7 @@ describe('E2E: Client hydration initialization', () => {
     clearDirectives();
   });
 
-  it('should hydrate c-text with scoped state', async () => {
+  it('should hydrate g-text with scoped state', async () => {
     // Create a state provider directive that sets up state
     const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
       $state.message = 'Hello World';
@@ -383,7 +383,7 @@ describe('E2E: Client hydration initialization', () => {
     provider.$inject = ['$element', '$state'];
     directive('test-provider', provider, { scope: true });
 
-    document.body.innerHTML = '<test-provider><span c-text="message"></span></test-provider>';
+    document.body.innerHTML = '<test-provider><span g-text="message"></span></test-provider>';
 
     await init();
     await new Promise(r => setTimeout(r, 10));
@@ -392,14 +392,14 @@ describe('E2E: Client hydration initialization', () => {
     expect(span.textContent).toBe('Hello World');
   });
 
-  it('should hydrate c-show based on state', async () => {
+  it('should hydrate g-show based on state', async () => {
     const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
       $state.visible = false;
     };
     provider.$inject = ['$element', '$state'];
     directive('test-provider', provider, { scope: true });
 
-    document.body.innerHTML = '<test-provider><p c-show="visible">Content</p></test-provider>';
+    document.body.innerHTML = '<test-provider><p g-show="visible">Content</p></test-provider>';
 
     await init();
     await new Promise(r => setTimeout(r, 10));
@@ -408,15 +408,15 @@ describe('E2E: Client hydration initialization', () => {
     expect(p.style.display).toBe('none');
   });
 
-  // TODO: c-class hydration needs investigation
-  it.skip('should hydrate c-class based on state', async () => {
+  // TODO: g-class hydration needs investigation
+  it.skip('should hydrate g-class based on state', async () => {
     const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
       $state.isActive = true;
     };
     provider.$inject = ['$element', '$state'];
     directive('test-provider', provider, { scope: true });
 
-    document.body.innerHTML = '<test-provider><button c-class="{ active: isActive }">Click</button></test-provider>';
+    document.body.innerHTML = '<test-provider><button g-class="{ active: isActive }">Click</button></test-provider>';
 
     await init();
     await new Promise(r => setTimeout(r, 10));
@@ -425,20 +425,20 @@ describe('E2E: Client hydration initialization', () => {
     expect(button.classList.contains('active')).toBe(true);
   });
 
-  // TODO: c-for client hydration needs investigation
-  it.skip('should hydrate c-for and render items', async () => {
+  // TODO: g-for client hydration needs investigation
+  it.skip('should hydrate g-for and render items', async () => {
     const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
       $state.items = ['Apple', 'Banana'];
     };
     provider.$inject = ['$element', '$state'];
     directive('test-provider', provider, { scope: true });
 
-    document.body.innerHTML = '<test-provider><ul><li c-for="item in items" c-text="item"></li></ul></test-provider>';
+    document.body.innerHTML = '<test-provider><ul><li g-for="item in items" g-text="item"></li></ul></test-provider>';
 
     await init();
     await new Promise(r => setTimeout(r, 10));
 
-    const items = document.querySelectorAll('li:not([data-c-for-template])');
+    const items = document.querySelectorAll('li:not([data-g-for-template])');
     expect(items.length).toBe(2);
     expect(items[0].textContent).toBe('Apple');
     expect(items[1].textContent).toBe('Banana');

@@ -35,7 +35,7 @@ const selectorCache = new WeakMap<DirectiveRegistry, string>();
 function getSelector(registry: DirectiveRegistry): string {
   let selector = selectorCache.get(registry);
   if (!selector) {
-    const directiveSelectors = [...registry.keys()].map(n => `[c-${n}]`);
+    const directiveSelectors = [...registry.keys()].map(n => `[g-${n}]`);
     // Also match native <slot> elements
     directiveSelectors.push('slot');
     selector = directiveSelectors.join(',');
@@ -161,11 +161,11 @@ interface IndexedDirective {
  * registry.set('text', textDirective);
  *
  * const html = await render(
- *   '<span c-text="user.name"></span>',
+ *   '<span g-text="user.name"></span>',
  *   { user: { name: 'Alice' } },
  *   registry
  * );
- * // '<span c-text="user.name">Alice</span>'
+ * // '<span g-text="user.name">Alice</span>'
  * ```
  */
 export async function render(
@@ -204,7 +204,7 @@ export async function render(
           }
 
           for (const [name, directive] of registry) {
-            const attr = match.getAttribute(`c-${name}`);
+            const attr = match.getAttribute(`g-${name}`);
             if (attr !== null) {
               index.push({
                 el: match,
@@ -251,28 +251,28 @@ export async function render(
 
     // Process elements in tree order
     for (const el of elementOrder) {
-      // Skip elements that were removed (e.g., by c-for cloning)
+      // Skip elements that were removed (e.g., by g-for cloning)
       if (!el.isConnected) {
         processed.add(el);
         continue;
       }
 
-      // Skip elements already processed by structural directives (c-for, c-if)
+      // Skip elements already processed by structural directives (g-for, g-if)
       // These elements have their own scoped processing
       if (el.hasAttribute(FOR_PROCESSED_ATTR) || el.hasAttribute(IF_PROCESSED_ATTR)) {
         processed.add(el);
         continue;
       }
 
-      // Skip template elements with c-for - these are template wrappers created by c-for
+      // Skip template elements with g-for - these are template wrappers created by g-for
       // and should not be processed as directives (they're for client hydration)
-      if (el.tagName === 'TEMPLATE' && el.hasAttribute('c-for')) {
+      if (el.tagName === 'TEMPLATE' && el.hasAttribute('g-for')) {
         processed.add(el);
         continue;
       }
 
       // Skip template content elements - these are inside template wrappers
-      // and their directives are processed by c-for when rendering items
+      // and their directives are processed by g-for when rendering items
       if (el.hasAttribute(FOR_TEMPLATE_ATTR)) {
         processed.add(el);
         continue;
@@ -285,7 +285,7 @@ export async function render(
       directives.sort((a, b) => b.priority - a.priority);
 
       for (const item of directives) {
-        // Check if element was disconnected by a previous directive (e.g., c-for replacing it)
+        // Check if element was disconnected by a previous directive (e.g., g-for replacing it)
         if (!item.el.isConnected) {
           break;
         }

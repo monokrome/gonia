@@ -5,7 +5,7 @@ import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
 import { reactive } from '../src/reactivity.js';
 
-describe('c-for directive', () => {
+describe('g-for directive', () => {
   let document: Document;
   let $eval: EvalFn;
 
@@ -22,8 +22,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
-      template.setAttribute('c-text', 'item');
+      template.setAttribute('g-for', 'item in items');
+      template.setAttribute('g-text', 'item');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state);
@@ -42,8 +42,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', '(item, index) in items');
-      template.setAttribute('c-text', "index + ': ' + item");
+      template.setAttribute('g-for', '(item, index) in items');
+      template.setAttribute('g-text', "index + ': ' + item");
       container.appendChild(template);
 
       cfor('(item, index) in items' as Expression, template, $eval, state);
@@ -61,8 +61,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
-      template.setAttribute('c-text', 'item');
+      template.setAttribute('g-for', 'item in items');
+      template.setAttribute('g-text', 'item');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state);
@@ -77,8 +77,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
-      template.setAttribute('c-text', 'item');
+      template.setAttribute('g-for', 'item in items');
+      template.setAttribute('g-text', 'item');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state);
@@ -95,8 +95,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', '(value, key) in obj');
-      template.setAttribute('c-text', "key + '=' + value");
+      template.setAttribute('g-for', '(value, key) in obj');
+      template.setAttribute('g-text', "key + '=' + value");
       container.appendChild(template);
 
       cfor('(value, key) in obj' as Expression, template, $eval, state);
@@ -117,8 +117,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
-      template.setAttribute('c-text', 'item');
+      template.setAttribute('g-for', 'item in items');
+      template.setAttribute('g-text', 'item');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state);
@@ -137,8 +137,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
-      template.setAttribute('c-text', 'item');
+      template.setAttribute('g-for', 'item in items');
+      template.setAttribute('g-text', 'item');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state);
@@ -152,7 +152,7 @@ describe('c-for directive', () => {
   });
 
   describe('nested directives', () => {
-    it('should process c-class in loop items', () => {
+    it('should process g-class in loop items', () => {
       const state = reactive({
         items: [
           { name: 'a', active: true },
@@ -164,9 +164,9 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
-      template.setAttribute('c-text', 'item.name');
-      template.setAttribute('c-class', '{ active: item.active }');
+      template.setAttribute('g-for', 'item in items');
+      template.setAttribute('g-text', 'item.name');
+      template.setAttribute('g-class', '{ active: item.active }');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state);
@@ -176,7 +176,7 @@ describe('c-for directive', () => {
       expect(items[1].classList.contains('active')).toBe(false);
     });
 
-    it('should process c-show in loop items', () => {
+    it('should process g-show in loop items', () => {
       const state = reactive({
         items: [
           { name: 'visible', show: true },
@@ -188,9 +188,9 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
-      template.setAttribute('c-text', 'item.name');
-      template.setAttribute('c-show', 'item.show');
+      template.setAttribute('g-for', 'item in items');
+      template.setAttribute('g-text', 'item.name');
+      template.setAttribute('g-show', 'item.show');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state);
@@ -215,9 +215,9 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'todo in todos');
-      template.setAttribute('c-text', 'todo.text');
-      template.setAttribute('c-class', '{ done: todo.done }');
+      template.setAttribute('g-for', 'todo in todos');
+      template.setAttribute('g-text', 'todo.text');
+      template.setAttribute('g-class', '{ done: todo.done }');
       container.appendChild(template);
 
       cfor('todo in todos' as Expression, template, $eval, state);
@@ -239,8 +239,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
-      template.setAttribute('c-text', 'item');
+      template.setAttribute('g-for', 'item in items');
+      template.setAttribute('g-text', 'item');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state);
@@ -255,8 +255,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', '(item) in items');
-      template.setAttribute('c-text', 'item');
+      template.setAttribute('g-for', '(item) in items');
+      template.setAttribute('g-text', 'item');
       container.appendChild(template);
 
       cfor('(item) in items' as Expression, template, $eval, state);
@@ -271,8 +271,8 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in data.items');
-      template.setAttribute('c-text', 'item');
+      template.setAttribute('g-for', 'item in data.items');
+      template.setAttribute('g-text', 'item');
       container.appendChild(template);
 
       cfor('item in data.items' as Expression, template, $eval, state);
@@ -289,15 +289,15 @@ describe('c-for directive', () => {
 
       const container = document.createElement('ul');
       const template = document.createElement('li');
-      template.setAttribute('c-for', 'item in items');
+      template.setAttribute('g-for', 'item in items');
       container.appendChild(template);
 
       cfor('item in items' as Expression, template, $eval, state, Mode.CLIENT);
 
-      // Should have a template element with c-for attribute
-      const templateEl = container.querySelector('template[c-for]');
+      // Should have a template element with g-for attribute
+      const templateEl = container.querySelector('template[g-for]');
       expect(templateEl).not.toBeNull();
-      expect(templateEl?.getAttribute('c-for')).toBe('item in items');
+      expect(templateEl?.getAttribute('g-for')).toBe('item in items');
 
       // Should have rendered the item
       const items = container.querySelectorAll('li');

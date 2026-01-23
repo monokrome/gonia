@@ -9,8 +9,8 @@ import { directive, Directive, Expression, EvalFn } from '../types.js';
  *
  * @example
  * ```html
- * <div c-show="isVisible">Visible content</div>
- * <div c-show="items.length > 0">Has items</div>
+ * <div g-show="isVisible">Visible content</div>
+ * <div g-show="items.length > 0">Has items</div>
  * ```
  */
 export const show: Directive<['$expr', '$element', '$eval']> = function show($expr: Expression, $element: Element, $eval: EvalFn) {
@@ -18,4 +18,4 @@ export const show: Directive<['$expr', '$element', '$eval']> = function show($ex
   ($element as HTMLElement).style.display = value ? '' : 'none';
 };
 
-directive('c-show', show);
+directive('g-show', show);

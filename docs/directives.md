@@ -4,67 +4,67 @@ Directives are special attributes that add reactive behavior to HTML elements. G
 
 ## Text Directives
 
-### c-text
+### g-text
 
 Sets the text content of an element.
 
 ```html
-<span c-text="message"></span>
-<p c-text="user.name"></p>
-<div c-text="'Hello, ' + name"></div>
+<span g-text="message"></span>
+<p g-text="user.name"></p>
+<div g-text="'Hello, ' + name"></div>
 ```
 
 The expression is evaluated and the result is set as the element's `textContent`. HTML is escaped automatically.
 
-### c-html
+### g-html
 
 Sets the inner HTML of an element (use with caution).
 
 ```html
-<div c-html="richContent"></div>
+<div g-html="richContent"></div>
 ```
 
 **Warning:** Only use with trusted content to avoid XSS vulnerabilities.
 
 ## Conditional Directives
 
-### c-show
+### g-show
 
 Toggles element visibility using `display: none`.
 
 ```html
-<div c-show="isVisible">This can be hidden</div>
-<p c-show="items.length > 0">Items exist</p>
+<div g-show="isVisible">This can be hidden</div>
+<p g-show="items.length > 0">Items exist</p>
 ```
 
 The element remains in the DOM but is hidden when the expression is falsy.
 
-### c-if
+### g-if
 
 Conditionally renders an element. When false, the element is removed from the DOM.
 
 ```html
-<p c-if="hasError">An error occurred</p>
-<div c-if="user">Welcome, <span c-text="user.name"></span></div>
+<p g-if="hasError">An error occurred</p>
+<div g-if="user">Welcome, <span g-text="user.name"></span></div>
 ```
 
-Unlike `c-show`, `c-if` completely removes the element when the condition is false.
+Unlike `g-show`, `g-if` completely removes the element when the condition is false.
 
 ## Loop Directive
 
-### c-for
+### g-for
 
 Iterates over arrays or objects to render multiple elements.
 
 **Array iteration:**
 ```html
-<li c-for="item in items" c-text="item"></li>
-<li c-for="(item, index) in items" c-text="index + ': ' + item"></li>
+<li g-for="item in items" g-text="item"></li>
+<li g-for="(item, index) in items" g-text="index + ': ' + item"></li>
 ```
 
 **Object iteration:**
 ```html
-<li c-for="(value, key) in object" c-text="key + ': ' + value"></li>
+<li g-for="(value, key) in object" g-text="key + ': ' + value"></li>
 ```
 
 **Built-in loop variables:**
@@ -75,23 +75,23 @@ Iterates over arrays or objects to render multiple elements.
 - `$odd` - True if odd index
 
 ```html
-<li c-for="item in items" c-class="{ first: $first, last: $last }">
-  <span c-text="item"></span>
+<li g-for="item in items" g-class="{ first: $first, last: $last }">
+  <span g-text="item"></span>
 </li>
 ```
 
 ## Class Directive
 
-### c-class
+### g-class
 
 Dynamically adds or removes CSS classes.
 
 ```html
-<div c-class="{ active: isActive, disabled: isDisabled }">
+<div g-class="{ active: isActive, disabled: isDisabled }">
   Conditional classes
 </div>
 
-<button c-class="{ 'btn-primary': isPrimary, 'btn-lg': isLarge }">
+<button g-class="{ 'btn-primary': isPrimary, 'btn-lg': isLarge }">
   Click me
 </button>
 ```
@@ -100,23 +100,23 @@ The expression should evaluate to an object where keys are class names and value
 
 ## Form Directives
 
-### c-model
+### g-model
 
 Two-way data binding for form inputs.
 
 **Text input:**
 ```html
-<input type="text" c-model="name">
+<input type="text" g-model="name">
 ```
 
 **Checkbox:**
 ```html
-<input type="checkbox" c-model="isChecked">
+<input type="checkbox" g-model="isChecked">
 ```
 
 **Select:**
 ```html
-<select c-model="selected">
+<select g-model="selected">
   <option value="a">Option A</option>
   <option value="b">Option B</option>
 </select>
@@ -124,19 +124,19 @@ Two-way data binding for form inputs.
 
 **Textarea:**
 ```html
-<textarea c-model="content"></textarea>
+<textarea g-model="content"></textarea>
 ```
 
 ## Event Directive
 
-### c-on
+### g-on
 
 Attaches event listeners to elements.
 
 ```html
-<button c-on="click: handleClick">Click me</button>
-<form c-on="submit: handleSubmit">...</form>
-<input c-on="input: handleInput">
+<button g-on="click: handleClick">Click me</button>
+<form g-on="submit: handleSubmit">...</form>
+<input g-on="input: handleInput">
 ```
 
 The expression after the colon is evaluated when the event fires. If it evaluates to a function, that function is called with the event object.
@@ -169,12 +169,12 @@ const highlight: Directive = ($expr, $element, $eval) => {
 
 highlight.$inject = ['$expr', '$element', '$eval'];
 
-directive('c-highlight', highlight);
+directive('g-highlight', highlight);
 ```
 
 Usage:
 ```html
-<div c-highlight="highlightColor">Highlighted content</div>
+<div g-highlight="highlightColor">Highlighted content</div>
 ```
 
 ## Directive Priority
@@ -183,7 +183,7 @@ Directives are processed in priority order. Built-in priorities:
 
 | Priority | Directives |
 |----------|------------|
-| 1000 (STRUCTURAL) | `c-for`, `c-if` |
+| 1000 (STRUCTURAL) | `g-for`, `g-if` |
 | 0 (NORMAL) | All others |
 
 Structural directives run first because they may modify the DOM structure.

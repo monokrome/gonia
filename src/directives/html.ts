@@ -10,12 +10,12 @@ import { directive, Directive, Expression, EvalFn } from '../types.js';
  *
  * @example
  * ```html
- * <div c-html="formattedContent"></div>
- * <div c-html="'<strong>' + title + '</strong>'"></div>
+ * <div g-html="formattedContent"></div>
+ * <div g-html="'<strong>' + title + '</strong>'"></div>
  * ```
  */
 export const html: Directive<['$expr', '$element', '$eval']> = function html($expr: Expression, $element: Element, $eval: EvalFn) {
   $element.innerHTML = String($eval($expr) ?? '');
 };
 
-directive('c-html', html);
+directive('g-html', html);

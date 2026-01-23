@@ -31,7 +31,7 @@ import { findTemplateAncestor, getSavedContent } from './template.js';
  *
  * Dynamic slot name:
  * ```html
- * <slot c-slot="activeTab"></slot>
+ * <slot g-slot="activeTab"></slot>
  * ```
  *
  * Default slot (no name):
@@ -81,14 +81,14 @@ export const slot: Directive<['$expr', '$element', '$eval']> = function slot($ex
   }
 };
 
-directive('c-slot', slot);
+directive('g-slot', slot);
 
 /**
  * Process native <slot> elements.
  *
  * @remarks
  * This handles native `<slot>` elements in templates,
- * treating them the same as `c-slot` directives.
+ * treating them the same as `g-slot` directives.
  *
  * @internal
  */

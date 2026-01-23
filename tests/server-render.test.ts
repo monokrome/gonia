@@ -14,12 +14,12 @@ describe('server render', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<span c-text="name"></span>',
+      '<span g-text="name"></span>',
       { name: 'Alice' },
       registry
     );
 
-    expect(result).toBe('<span c-text="name">Alice</span>');
+    expect(result).toBe('<span g-text="name">Alice</span>');
   });
 
   it('should render multiple directives', async () => {
@@ -27,12 +27,12 @@ describe('server render', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<span c-text="first"></span> <span c-text="last"></span>',
+      '<span g-text="first"></span> <span g-text="last"></span>',
       { first: 'John', last: 'Doe' },
       registry
     );
 
-    expect(result).toBe('<span c-text="first">John</span> <span c-text="last">Doe</span>');
+    expect(result).toBe('<span g-text="first">John</span> <span g-text="last">Doe</span>');
   });
 
   it('should render show directive', async () => {
@@ -40,7 +40,7 @@ describe('server render', () => {
     registry.set('show', show);
 
     const result = await render(
-      '<div c-show="visible">Visible</div><div c-show="hidden">Hidden</div>',
+      '<div g-show="visible">Visible</div><div g-show="hidden">Hidden</div>',
       { visible: true, hidden: false },
       registry
     );
@@ -54,12 +54,12 @@ describe('server render', () => {
     registry.set('html', html);
 
     const result = await render(
-      '<div c-html="content"></div>',
+      '<div g-html="content"></div>',
       { content: '<strong>Bold</strong>' },
       registry
     );
 
-    expect(result).toBe('<div c-html="content"><strong>Bold</strong></div>');
+    expect(result).toBe('<div g-html="content"><strong>Bold</strong></div>');
   });
 
   it('should preserve directive attributes for hydration', async () => {
@@ -67,12 +67,12 @@ describe('server render', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<span c-text="name"></span>',
+      '<span g-text="name"></span>',
       { name: 'Alice' },
       registry
     );
 
-    expect(result).toContain('c-text="name"');
+    expect(result).toContain('g-text="name"');
   });
 
   it('should handle nested elements', async () => {
@@ -80,12 +80,12 @@ describe('server render', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<div><span c-text="name"></span></div>',
+      '<div><span g-text="name"></span></div>',
       { name: 'Bob' },
       registry
     );
 
-    expect(result).toBe('<div><span c-text="name">Bob</span></div>');
+    expect(result).toBe('<div><span g-text="name">Bob</span></div>');
   });
 
   it('should handle multiple directives on same element', async () => {
@@ -94,7 +94,7 @@ describe('server render', () => {
     registry.set('show', show);
 
     const result = await render(
-      '<span c-text="name" c-show="visible"></span>',
+      '<span g-text="name" g-show="visible"></span>',
       { name: 'Alice', visible: true },
       registry
     );
@@ -117,7 +117,7 @@ describe('server render', () => {
     registry.set('high', highPriority);
 
     await render(
-      '<div c-low="" c-high=""></div>',
+      '<div g-low="" g-high=""></div>',
       {},
       registry
     );
@@ -140,7 +140,7 @@ describe('server render with templates', () => {
     registry.set('slot', slot);
 
     const result = await render(
-      '<div c-template="card"><p>Content</p></div>',
+      '<div g-template="card"><p>Content</p></div>',
       {},
       registry
     );
@@ -161,7 +161,7 @@ describe('server render with templates', () => {
     registry.set('slot', slot);
 
     const result = await render(
-      '<div c-template="card"><h1 slot="title">Title</h1><p>Body</p></div>',
+      '<div g-template="card"><h1 slot="title">Title</h1><p>Body</p></div>',
       {},
       registry
     );
@@ -172,7 +172,7 @@ describe('server render with templates', () => {
 
   it('should process directives inside templates', async () => {
     const templates = createMemoryRegistry({
-      greeting: '<p>Hello, <span c-text="name"></span>!</p>'
+      greeting: '<p>Hello, <span g-text="name"></span>!</p>'
     });
 
     registerService('$templates', templates);
@@ -182,12 +182,12 @@ describe('server render with templates', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<div c-template="greeting"></div>',
+      '<div g-template="greeting"></div>',
       { name: 'World' },
       registry
     );
 
-    expect(result).toContain('Hello, <span c-text="name">World</span>!');
+    expect(result).toContain('Hello, <span g-text="name">World</span>!');
   });
 
   it('should process directives in slot content', async () => {
@@ -203,12 +203,12 @@ describe('server render with templates', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<div c-template="wrapper"><span c-text="message"></span></div>',
+      '<div g-template="wrapper"><span g-text="message"></span></div>',
       { message: 'Hello!' },
       registry
     );
 
-    expect(result).toContain('<span c-text="message">Hello!</span>');
+    expect(result).toContain('<span g-text="message">Hello!</span>');
   });
 });
 
@@ -228,14 +228,14 @@ describe('render caching', () => {
 
     // First render - builds selector
     const result1 = await render(
-      '<span c-text="a"></span>',
+      '<span g-text="a"></span>',
       { a: 'first' },
       registry
     );
 
     // Second render with same registry - uses cached selector
     const result2 = await render(
-      '<span c-text="b"></span>',
+      '<span g-text="b"></span>',
       { b: 'second' },
       registry
     );
@@ -250,9 +250,9 @@ describe('render edge cases', () => {
     const registry = new Map<string, Directive>();
     registry.set('text', text);
 
-    // The outer div doesn't match [c-text], only the inner span does
+    // The outer div doesn't match [g-text], only the inner span does
     const result = await render(
-      '<div><span c-text="name"></span></div>',
+      '<div><span g-text="name"></span></div>',
       { name: 'test' },
       registry
     );
@@ -291,7 +291,7 @@ describe('dependency injection', () => {
     registry.set('state', stateDirective);
 
     const result = await render(
-      '<div c-state=""></div>',
+      '<div g-state=""></div>',
       {},
       registry
     );
@@ -322,7 +322,7 @@ describe('dependency injection', () => {
     registry.set('reader', readerDirective);
 
     const result = await render(
-      '<div c-setter="" c-reader=""></div>',
+      '<div g-setter="" g-reader=""></div>',
       {},
       registry
     );
@@ -347,7 +347,7 @@ describe('dependency injection', () => {
     registry.set('svc', serviceDirective);
 
     const result = await render(
-      '<div c-svc=""></div>',
+      '<div g-svc=""></div>',
       {},
       registry
     );
@@ -364,7 +364,7 @@ describe('dependency injection', () => {
     registry.set('bad', badDirective);
 
     await expect(
-      render('<div c-bad=""></div>', {}, registry)
+      render('<div g-bad=""></div>', {}, registry)
     ).rejects.toThrow('Unknown injectable: unknownService');
   });
 
@@ -393,7 +393,7 @@ describe('dependency injection', () => {
     registry.set('themedbutton', themedButton);
 
     const result = await render(
-      '<div c-themeprovider=""><span c-themedbutton=""></span></div>',
+      '<div g-themeprovider=""><span g-themedbutton=""></span></div>',
       {},
       registry
     );
@@ -426,7 +426,7 @@ describe('dependency injection', () => {
     // Nested providers - consumer should get value from nearest (inner) provider
     // Tree order ensures parents are processed before children
     const result = await render(
-      '<div c-provider="outer"><div c-provider="inner"><span c-consumer=""></span></div></div>',
+      '<div g-provider="outer"><div g-provider="inner"><span g-consumer=""></span></div></div>',
       {},
       registry
     );
@@ -435,23 +435,23 @@ describe('dependency injection', () => {
   });
 });
 
-describe('c-for SSR', () => {
+describe('g-for SSR', () => {
   it('should wrap original element in template element', async () => {
     const { cfor, FOR_TEMPLATE_ATTR } = await import('../src/directives/for.js');
     const registry = new Map<string, Directive>();
     registry.set('for', cfor);
 
     const result = await render(
-      '<div c-for="item in items"><span>item</span></div>',
+      '<div g-for="item in items"><span>item</span></div>',
       { items: ['a', 'b'] },
       registry
     );
 
-    // Should have a template element with c-for attribute
-    expect(result).toContain('<template c-for="item in items">');
+    // Should have a template element with g-for attribute
+    expect(result).toContain('<template g-for="item in items">');
     expect(result).toContain('</template>');
 
-    // Template content should have data-c-for-template marker
+    // Template content should have data-g-for-template marker
     expect(result).toContain(FOR_TEMPLATE_ATTR);
   });
 
@@ -462,13 +462,13 @@ describe('c-for SSR', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<li c-for="item in items" c-text="item"></li>',
+      '<li g-for="item in items" g-text="item"></li>',
       { items: ['first', 'second', 'third'] },
       registry
     );
 
     // Should have the template element
-    expect(result).toContain('<template c-for="item in items">');
+    expect(result).toContain('<template g-for="item in items">');
 
     // Should render items with text content
     expect(result).toContain('>first</li>');
@@ -476,19 +476,19 @@ describe('c-for SSR', () => {
     expect(result).toContain('>third</li>');
   });
 
-  it('should mark rendered items with data-c-for-processed', async () => {
+  it('should mark rendered items with data-g-for-processed', async () => {
     const { cfor, FOR_PROCESSED_ATTR } = await import('../src/directives/for.js');
     const registry = new Map<string, Directive>();
     registry.set('for', cfor);
 
     const result = await render(
-      '<div c-for="item in items">content</div>',
+      '<div g-for="item in items">content</div>',
       { items: ['a', 'b'] },
       registry
     );
 
     // Each rendered item should have the processed attribute
-    const processedCount = (result.match(/data-c-for-processed/g) || []).length;
+    const processedCount = (result.match(/data-g-for-processed/g) || []).length;
     expect(processedCount).toBe(2);
   });
 
@@ -498,15 +498,15 @@ describe('c-for SSR', () => {
     registry.set('for', cfor);
 
     const result = await render(
-      '<div c-for="item in items">content</div>',
+      '<div g-for="item in items">content</div>',
       { items: [] },
       registry
     );
 
     // Should still have template element
-    expect(result).toContain('<template c-for="item in items">');
+    expect(result).toContain('<template g-for="item in items">');
     // But no rendered items (no processed attr)
-    expect(result).not.toContain('data-c-for-processed');
+    expect(result).not.toContain('data-g-for-processed');
   });
 
   it('should handle index in for expression', async () => {
@@ -516,7 +516,7 @@ describe('c-for SSR', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<li c-for="(item, idx) in items" c-text="idx + \': \' + item"></li>',
+      '<li g-for="(item, idx) in items" g-text="idx + \': \' + item"></li>',
       { items: ['a', 'b'] },
       registry
     );
@@ -532,7 +532,7 @@ describe('c-for SSR', () => {
     registry.set('text', text);
 
     const result = await render(
-      '<li c-for="(value, key) in obj" c-text="key + \': \' + value"></li>',
+      '<li g-for="(value, key) in obj" g-text="key + \': \' + value"></li>',
       { obj: { name: 'Alice', age: '30' } },
       registry
     );

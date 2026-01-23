@@ -35,21 +35,21 @@ const html = await render(template, state, registry);
 
 ## SSR Output Format
 
-### c-for Template Elements
+### g-for Template Elements
 
-The `c-for` directive outputs a `<template>` element containing the loop template, followed by rendered items:
+The `g-for` directive outputs a `<template>` element containing the loop template, followed by rendered items:
 
 ```html
 <!-- Input -->
-<li c-for="item in items" c-text="item"></li>
+<li g-for="item in items" g-text="item"></li>
 
 <!-- SSR Output -->
-<template c-for="item in items">
-  <li data-c-for-template c-text="item"></li>
+<template g-for="item in items">
+  <li data-g-for-template g-text="item"></li>
 </template>
-<li data-c-for-processed c-text="item">Item 1</li>
-<li data-c-for-processed c-text="item">Item 2</li>
-<li data-c-for-processed c-text="item">Item 3</li>
+<li data-g-for-processed g-text="item">Item 1</li>
+<li data-g-for-processed g-text="item">Item 2</li>
+<li data-g-for-processed g-text="item">Item 3</li>
 ```
 
 The `<template>` element is used by the client during hydration to:
@@ -57,28 +57,28 @@ The `<template>` element is used by the client during hydration to:
 2. Remove SSR-rendered items
 3. Set up reactive rendering
 
-### c-if Conditional Rendering
+### g-if Conditional Rendering
 
-When `c-if` is false, the element is not included in SSR output:
+When `g-if` is false, the element is not included in SSR output:
 
 ```html
 <!-- Input with showError = false -->
-<p c-if="showError">Error message</p>
+<p g-if="showError">Error message</p>
 
 <!-- SSR Output -->
 <!-- Element not rendered -->
 ```
 
-### c-show Display State
+### g-show Display State
 
-The `c-show` directive sets inline display style:
+The `g-show` directive sets inline display style:
 
 ```html
 <!-- Input with visible = false -->
-<div c-show="visible">Content</div>
+<div g-show="visible">Content</div>
 
 <!-- SSR Output -->
-<div c-show="visible" style="display:none">Content</div>
+<div g-show="visible" style="display:none">Content</div>
 ```
 
 ## Hydration
@@ -95,15 +95,15 @@ hydrate();
 ### What Hydration Does
 
 1. **Finds directive elements** - Scans DOM for `c-*` attributes
-2. **Processes structural directives** - Sets up `c-for` and `c-if` reactivity
-3. **Attaches event handlers** - Connects `c-on` directives
+2. **Processes structural directives** - Sets up `g-for` and `g-if` reactivity
+3. **Attaches event handlers** - Connects `g-on` directives
 4. **Enables reactivity** - Wraps state in reactive proxies
 
 ### Hydration Does NOT
 
 - Re-render content that matches server state
 - Cause visible flicker or layout shifts
-- Duplicate list items from `c-for`
+- Duplicate list items from `g-for`
 
 ## State Synchronization
 
@@ -193,8 +193,8 @@ const state = { items: await fetchAllItems(), user: await getUser(), ... };
 Show loading indicators for data that loads after hydration:
 
 ```html
-<div c-if="isLoading">Loading...</div>
-<div c-if="!isLoading" c-for="item in items">...</div>
+<div g-if="isLoading">Loading...</div>
+<div g-if="!isLoading" g-for="item in items">...</div>
 ```
 
 ### 3. Avoid SSR-Only Code in Client Bundles

@@ -54,7 +54,7 @@ export interface InjectableRegistry {
   $state: Record<string, unknown>;
   /** Root reactive state object (shared across all elements) */
   $rootState: Record<string, unknown>;
-  /** Template registry for c-template directive */
+  /** Template registry for g-template directive */
   $templates: { get(name: string): Promise<string> };
   /** Current execution mode (server or client) */
   $mode: Mode;
@@ -121,10 +121,10 @@ export interface Context {
  *
  * @remarks
  * Higher priority directives run first. Structural directives
- * (like c-if, c-for) need to run before behavioral ones.
+ * (like g-if, g-for) need to run before behavioral ones.
  */
 export enum DirectivePriority {
-  /** Structural directives that control DOM presence (c-if, c-for) */
+  /** Structural directives that control DOM presence (g-if, g-for) */
   STRUCTURAL = 1000,
   /** Template/transclusion directives */
   TEMPLATE = 500,
@@ -345,7 +345,7 @@ const directiveRegistry = new Map<string, DirectiveRegistration>();
  * The function can be `null` for pure template directives that have no
  * runtime behavior.
  *
- * @param name - The directive name (e.g., 'c-text' or 'todo-app')
+ * @param name - The directive name (e.g., 'g-text' or 'todo-app')
  * @param fn - The directive function, or null for template-only directives
  * @param options - Registration options
  *

@@ -5,7 +5,7 @@ import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
 import { reactive } from '../src/reactivity.js';
 
-describe('c-if directive', () => {
+describe('g-if directive', () => {
   let document: Document;
   let $eval: EvalFn;
 
@@ -22,7 +22,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
+      element.setAttribute('g-if', 'show');
       element.textContent = 'Visible';
       container.appendChild(element);
 
@@ -39,7 +39,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
+      element.setAttribute('g-if', 'show');
       element.textContent = 'Hidden';
       container.appendChild(element);
 
@@ -55,7 +55,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'items.length > 0');
+      element.setAttribute('g-if', 'items.length > 0');
       element.textContent = 'Has items';
       container.appendChild(element);
 
@@ -71,7 +71,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'value');
+      element.setAttribute('g-if', 'value');
       container.appendChild(element);
 
       cif('value' as Expression, element, $eval, state);
@@ -86,7 +86,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'value');
+      element.setAttribute('g-if', 'value');
       container.appendChild(element);
 
       cif('value' as Expression, element, $eval, state);
@@ -103,7 +103,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
+      element.setAttribute('g-if', 'show');
       element.textContent = 'Dynamic';
       container.appendChild(element);
 
@@ -124,7 +124,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
+      element.setAttribute('g-if', 'show');
       element.textContent = 'Removable';
       container.appendChild(element);
 
@@ -144,7 +144,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
+      element.setAttribute('g-if', 'show');
       container.appendChild(element);
 
       cif('show' as Expression, element, $eval, state);
@@ -163,15 +163,15 @@ describe('c-if directive', () => {
   });
 
   describe('nested directives', () => {
-    it('should process c-text in conditional element', () => {
+    it('should process g-text in conditional element', () => {
       const state = reactive({ show: true, message: 'Hello' });
       const ctx = createContext(Mode.CLIENT, state);
       $eval = ctx.eval.bind(ctx);
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
-      element.setAttribute('c-text', 'message');
+      element.setAttribute('g-if', 'show');
+      element.setAttribute('g-text', 'message');
       container.appendChild(element);
 
       cif('show' as Expression, element, $eval, state);
@@ -179,15 +179,15 @@ describe('c-if directive', () => {
       expect(container.querySelector('p')?.textContent).toBe('Hello');
     });
 
-    it('should process c-class in conditional element', () => {
+    it('should process g-class in conditional element', () => {
       const state = reactive({ show: true, isActive: true });
       const ctx = createContext(Mode.CLIENT, state);
       $eval = ctx.eval.bind(ctx);
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
-      element.setAttribute('c-class', '{ active: isActive }');
+      element.setAttribute('g-if', 'show');
+      element.setAttribute('g-class', '{ active: isActive }');
       container.appendChild(element);
 
       cif('show' as Expression, element, $eval, state);
@@ -204,7 +204,7 @@ describe('c-if directive', () => {
 
       const container = document.createElement('div');
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
+      element.setAttribute('g-if', 'show');
       container.appendChild(element);
 
       cif('show' as Expression, element, $eval, state);
@@ -224,7 +224,7 @@ describe('c-if directive', () => {
       const before = document.createElement('span');
       before.textContent = 'before';
       const element = document.createElement('p');
-      element.setAttribute('c-if', 'show');
+      element.setAttribute('g-if', 'show');
       element.textContent = 'conditional';
       const after = document.createElement('span');
       after.textContent = 'after';

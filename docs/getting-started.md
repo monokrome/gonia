@@ -37,8 +37,8 @@ my-app/
 </head>
 <body>
   <my-app>
-    <h1 c-text="title"></h1>
-    <p c-text="message"></p>
+    <h1 g-text="title"></h1>
+    <p g-text="message"></p>
   </my-app>
   <script type="module" src="./src/main.ts"></script>
 </body>

@@ -129,7 +129,7 @@ Child elements inherit parent state through scope chains:
 $state.theme = 'dark';
 
 // Child can access parent state
-// <child-component c-text="theme"></child-component>
+// <child-component g-text="theme"></child-component>
 ```
 
 ## Creating Scopes

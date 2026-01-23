@@ -108,7 +108,7 @@ function extractSlotContent(el: Element): Map<string, string> {
  *
  * @example
  * ```html
- * <div c-template="dialog">
+ * <div g-template="dialog">
  *   <span slot="header">Title</span>
  *   <p>Body content</p>
  * </div>
@@ -172,7 +172,7 @@ template.$inject = ['$expr', '$element', '$templates'];
 template.transclude = true;
 template.priority = DirectivePriority.TEMPLATE;
 
-directive('c-template', template);
+directive('g-template', template);
 
 /**
  * Get the effect scope for an element.

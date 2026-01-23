@@ -82,10 +82,10 @@ function getInputType(el: Element): string {
  *
  * @example
  * ```html
- * <input c-model="name">
- * <input type="checkbox" c-model="isActive">
- * <select c-model="selectedOption">
- * <textarea c-model="description"></textarea>
+ * <input g-model="name">
+ * <input type="checkbox" g-model="isActive">
+ * <select g-model="selectedOption">
+ * <textarea g-model="description"></textarea>
  * ```
  */
 export const model: Directive<['$expr', '$element', '$eval', '$rootState']> = function model(
@@ -153,4 +153,4 @@ export const model: Directive<['$expr', '$element', '$eval', '$rootState']> = fu
 
 model.$inject = ['$expr', '$element', '$eval', '$rootState'];
 
-directive('c-model', model);
+directive('g-model', model);

@@ -17,8 +17,8 @@ import { effect } from '../reactivity.js';
  *
  * @example
  * ```html
- * <div c-class="{ active: isActive, 'text-red': hasError }">
- * <div c-class="{ [dynamicClass]: true }">
+ * <div g-class="{ active: isActive, 'text-red': hasError }">
+ * <div g-class="{ [dynamicClass]: true }">
  * ```
  */
 export const cclass: Directive<['$expr', '$element', '$eval']> = function cclass(
@@ -49,4 +49,4 @@ export const cclass: Directive<['$expr', '$element', '$eval']> = function cclass
 
 cclass.$inject = ['$expr', '$element', '$eval'];
 
-directive('c-class', cclass);
+directive('g-class', cclass);

@@ -252,7 +252,7 @@ function cleanup(effectFn: Effect): void {
  * Create a child reactive scope.
  *
  * @remarks
- * Used by structural directives like c-for to create per-item contexts.
+ * Used by structural directives like g-for to create per-item contexts.
  * The child scope inherits from the parent, with additions taking precedence.
  *
  * @typeParam T - Parent object type

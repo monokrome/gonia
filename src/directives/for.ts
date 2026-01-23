@@ -9,7 +9,7 @@ import { effect, createEffectScope, createScope, EffectScope } from '../reactivi
 import { createContext } from '../context.js';
 
 /**
- * Parse a c-for expression.
+ * Parse a g-for expression.
  *
  * Supports:
  * - `item in items`
@@ -39,11 +39,11 @@ function parseForExpression(expr: string): {
   };
 }
 
-/** Attribute used to mark elements processed by c-for */
-export const FOR_PROCESSED_ATTR = 'data-c-for-processed';
+/** Attribute used to mark elements processed by g-for */
+export const FOR_PROCESSED_ATTR = 'data-g-for-processed';
 
 /** Attribute used to mark template content that should be skipped during SSR */
-export const FOR_TEMPLATE_ATTR = 'data-c-for-template';
+export const FOR_TEMPLATE_ATTR = 'data-g-for-template';
 
 /**
  * Process directives on a cloned element within a child scope.
@@ -54,21 +54,21 @@ function processClonedElement(
   scopeAdditions: Record<string, unknown>,
   mode: Mode
 ): void {
-  // Mark this element as processed by c-for so hydrate skips it
+  // Mark this element as processed by g-for so hydrate skips it
   el.setAttribute(FOR_PROCESSED_ATTR, '');
 
   const childScope = createScope(parentState, scopeAdditions);
   const childCtx = createContext(mode, childScope);
 
-  // Process c-text directives
-  const textAttr = el.getAttribute('c-text');
+  // Process g-text directives
+  const textAttr = el.getAttribute('g-text');
   if (textAttr) {
     const value = childCtx.eval(textAttr as Expression);
     el.textContent = String(value ?? '');
   }
 
-  // Process c-class directives
-  const classAttr = el.getAttribute('c-class');
+  // Process g-class directives
+  const classAttr = el.getAttribute('g-class');
   if (classAttr) {
     const classObj = childCtx.eval<Record<string, boolean>>(classAttr as Expression);
     if (classObj && typeof classObj === 'object') {
@@ -82,16 +82,16 @@ function processClonedElement(
     }
   }
 
-  // Process c-show directives
-  const showAttr = el.getAttribute('c-show');
+  // Process g-show directives
+  const showAttr = el.getAttribute('g-show');
   if (showAttr) {
     const value = childCtx.eval(showAttr as Expression);
     (el as HTMLElement).style.display = value ? '' : 'none';
   }
 
-  // Process c-on directives (format: "event: handler") - client only
+  // Process g-on directives (format: "event: handler") - client only
   if (mode === Mode.CLIENT) {
-    const onAttr = el.getAttribute('c-on');
+    const onAttr = el.getAttribute('g-on');
     if (onAttr) {
       setupEventHandler(el, onAttr, childCtx, childScope);
     }
@@ -115,7 +115,7 @@ function setupEventHandler(
 ): void {
   const colonIdx = expr.indexOf(':');
   if (colonIdx === -1) {
-    console.error(`Invalid c-on expression: ${expr}. Expected "event: handler"`);
+    console.error(`Invalid g-on expression: ${expr}. Expected "event: handler"`);
     return;
   }
 
@@ -221,13 +221,13 @@ function removeSSRItems(templateEl: Element): void {
  * For objects, provides value and key.
  *
  * On server: wraps template in <template> element, renders items after it.
- * On client: finds <template c-for>, extracts template, sets up reactive loop.
+ * On client: finds <template g-for>, extracts template, sets up reactive loop.
  *
  * @example
  * ```html
- * <li c-for="item in items" c-text="item.name"></li>
- * <li c-for="(item, index) in items" c-text="index + ': ' + item.name"></li>
- * <div c-for="(value, key) in object" c-text="key + ': ' + value"></div>
+ * <li g-for="item in items" g-text="item.name"></li>
+ * <li g-for="(item, index) in items" g-text="index + ': ' + item.name"></li>
+ * <div g-for="(value, key) in object" g-text="key + ': ' + value"></div>
  * ```
  */
 export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> = function cfor(
@@ -239,7 +239,7 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
 ) {
   const parsed = parseForExpression($expr as string);
   if (!parsed) {
-    console.error(`Invalid c-for expression: ${$expr}`);
+    console.error(`Invalid g-for expression: ${$expr}`);
     return;
   }
 
@@ -254,11 +254,11 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
   if ($mode === Mode.SERVER) {
     // Create a <template> element to hold the original
     const templateWrapper = $element.ownerDocument.createElement('template');
-    templateWrapper.setAttribute('c-for', $expr as string);
+    templateWrapper.setAttribute('g-for', $expr as string);
 
-    // Clone the original element (without c-for attr) into the template
+    // Clone the original element (without g-for attr) into the template
     const templateContent = $element.cloneNode(true) as Element;
-    templateContent.removeAttribute('c-for');
+    templateContent.removeAttribute('g-for');
     // Mark as template content so render loop skips it
     templateContent.setAttribute(FOR_TEMPLATE_ATTR, '');
 
@@ -276,12 +276,12 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
 
   // Client-side: check if hydrating from SSR or fresh render
   if (isTemplateElement) {
-    // Hydrating from SSR: element is <template c-for="...">
+    // Hydrating from SSR: element is <template g-for="...">
     const templateWrapper = $element as HTMLTemplateElement;
     const templateContent = templateWrapper.content.firstElementChild;
 
     if (!templateContent) {
-      console.error('c-for template element has no content');
+      console.error('g-for template element has no content');
       return;
     }
 
@@ -314,13 +314,13 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
       });
     });
   } else {
-    // Fresh client render: element has c-for attribute directly
+    // Fresh client render: element has g-for attribute directly
     // Wrap in template element for consistency
     const templateWrapper = $element.ownerDocument.createElement('template');
-    templateWrapper.setAttribute('c-for', $expr as string);
+    templateWrapper.setAttribute('g-for', $expr as string);
 
     const templateContent = $element.cloneNode(true) as Element;
-    templateContent.removeAttribute('c-for');
+    templateContent.removeAttribute('g-for');
     templateWrapper.content.appendChild(templateContent);
 
     parent.replaceChild(templateWrapper, $element);
@@ -356,4 +356,4 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
 cfor.$inject = ['$expr', '$element', '$eval', '$state', '$mode'];
 cfor.priority = DirectivePriority.STRUCTURAL;
 
-directive('c-for', cfor);
+directive('g-for', cfor);

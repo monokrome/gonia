@@ -9,8 +9,8 @@ import { effect } from '../reactivity.js';
 import { createContext } from '../context.js';
 import { createScope } from '../reactivity.js';
 
-/** Attribute used to mark elements processed by c-if */
-export const IF_PROCESSED_ATTR = 'data-c-if-processed';
+/** Attribute used to mark elements processed by g-if */
+export const IF_PROCESSED_ATTR = 'data-g-if-processed';
 
 /**
  * Process directives on a conditionally rendered element.
@@ -25,15 +25,15 @@ function processConditionalElement(
   const childScope = createScope(parentState, {});
   const childCtx = createContext(mode, childScope);
 
-  // Process c-text directives
-  const textAttr = el.getAttribute('c-text');
+  // Process g-text directives
+  const textAttr = el.getAttribute('g-text');
   if (textAttr) {
     const value = childCtx.eval(textAttr as Expression);
     el.textContent = String(value ?? '');
   }
 
-  // Process c-class directives
-  const classAttr = el.getAttribute('c-class');
+  // Process g-class directives
+  const classAttr = el.getAttribute('g-class');
   if (classAttr) {
     const classObj = childCtx.eval<Record<string, boolean>>(classAttr as Expression);
     if (classObj && typeof classObj === 'object') {
@@ -47,16 +47,16 @@ function processConditionalElement(
     }
   }
 
-  // Process c-show directives
-  const showAttr = el.getAttribute('c-show');
+  // Process g-show directives
+  const showAttr = el.getAttribute('g-show');
   if (showAttr) {
     const value = childCtx.eval(showAttr as Expression);
     (el as HTMLElement).style.display = value ? '' : 'none';
   }
 
-  // Process c-on directives (format: "event: handler") - client only
+  // Process g-on directives (format: "event: handler") - client only
   if (mode === Mode.CLIENT) {
-    const onAttr = el.getAttribute('c-on');
+    const onAttr = el.getAttribute('g-on');
     if (onAttr) {
       const colonIdx = onAttr.indexOf(':');
       if (colonIdx !== -1) {
@@ -83,7 +83,7 @@ function processConditionalElement(
  * Conditionally render an element.
  *
  * @remarks
- * Unlike c-show which uses display:none, c-if completely removes
+ * Unlike g-show which uses display:none, g-if completely removes
  * the element from the DOM when the condition is falsy.
  *
  * On server: evaluates once and removes element if false.
@@ -91,8 +91,8 @@ function processConditionalElement(
  *
  * @example
  * ```html
- * <div c-if="isLoggedIn">Welcome back!</div>
- * <div c-if="items.length > 0">Has items</div>
+ * <div g-if="isLoggedIn">Welcome back!</div>
+ * <div g-if="items.length > 0">Has items</div>
  * ```
  */
 export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> = function cif(
@@ -114,18 +114,18 @@ export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> =
       $element.remove();
     } else {
       // Process child directives
-      $element.removeAttribute('c-if');
+      $element.removeAttribute('g-if');
       processConditionalElement($element, $state, $mode);
     }
     return;
   }
 
   // Client-side: set up reactive effect
-  const placeholder = $element.ownerDocument.createComment(` c-if: ${$expr} `);
+  const placeholder = $element.ownerDocument.createComment(` g-if: ${$expr} `);
   parent.insertBefore(placeholder, $element);
 
   const template = $element.cloneNode(true) as Element;
-  template.removeAttribute('c-if');
+  template.removeAttribute('g-if');
   $element.remove();
 
   let renderedElement: Element | null = null;
@@ -156,4 +156,4 @@ export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> =
 cif.$inject = ['$expr', '$element', '$eval', '$state', '$mode'];
 cif.priority = DirectivePriority.STRUCTURAL;
 
-directive('c-if', cif);
+directive('g-if', cif);

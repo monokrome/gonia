@@ -7,7 +7,7 @@
 import { directive, Directive, Expression, EvalFn } from '../types.js';
 
 /**
- * Parse c-on expression: "event: handler" or "event: handler()"
+ * Parse g-on expression: "event: handler" or "event: handler()"
  */
 function parseOnExpression(expr: string): { event: string; handler: string } | null {
   const colonIdx = expr.indexOf(':');
@@ -34,9 +34,9 @@ function parseOnExpression(expr: string): { event: string; handler: string } | n
  *
  * @example
  * ```html
- * <button c-on="click: handleClick">Click me</button>
- * <form c-on="submit: save">
- * <input c-on="keydown: onKey">
+ * <button g-on="click: handleClick">Click me</button>
+ * <form g-on="submit: save">
+ * <input g-on="keydown: onKey">
  * ```
  */
 export const on: Directive<['$expr', '$element', '$eval', '$rootState']> = function on(
@@ -47,7 +47,7 @@ export const on: Directive<['$expr', '$element', '$eval', '$rootState']> = funct
 ) {
   const parsed = parseOnExpression($expr as string);
   if (!parsed) {
-    console.error(`Invalid c-on expression: ${$expr}. Expected "event: handler"`);
+    console.error(`Invalid g-on expression: ${$expr}. Expected "event: handler"`);
     return;
   }
 
@@ -67,4 +67,4 @@ export const on: Directive<['$expr', '$element', '$eval', '$rootState']> = funct
 
 on.$inject = ['$expr', '$element', '$eval', '$rootState'];
 
-directive('c-on', on);
+directive('g-on', on);

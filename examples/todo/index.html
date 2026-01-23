@@ -19,30 +19,30 @@
     <h1>TODO List</h1>
 
     <!-- Add new todo -->
-    <form c-on="submit: addTodo">
-      <input type="text" c-model="newTodo" placeholder="What needs to be done?" />
+    <form g-on="submit: addTodo">
+      <input type="text" g-model="newTodo" placeholder="What needs to be done?" />
       <button type="submit">Add</button>
     </form>
 
     <!-- Filter buttons -->
     <div class="filters">
-      <button c-on="click: setFilter('all')" c-class="{ active: filter === 'all' }">All</button>
-      <button c-on="click: setFilter('active')" c-class="{ active: filter === 'active' }">Active</button>
-      <button c-on="click: setFilter('done')" c-class="{ active: filter === 'done' }">Done</button>
+      <button g-on="click: setFilter('all')" g-class="{ active: filter === 'all' }">All</button>
+      <button g-on="click: setFilter('active')" g-class="{ active: filter === 'active' }">Active</button>
+      <button g-on="click: setFilter('done')" g-class="{ active: filter === 'done' }">Done</button>
     </div>
 
     <!-- Todo list -->
-    <div c-for="todo in filteredTodos">
-      <div class="todo-item" c-class="{ done: todo.done }">
-        <input type="checkbox" c-model="todo.done" />
-        <span c-text="todo.text"></span>
-        <button c-on="click: removeTodo(todo.id)">×</button>
+    <div g-for="todo in filteredTodos">
+      <div class="todo-item" g-class="{ done: todo.done }">
+        <input type="checkbox" g-model="todo.done" />
+        <span g-text="todo.text"></span>
+        <button g-on="click: removeTodo(todo.id)">×</button>
       </div>
     </div>
 
     <!-- Summary -->
-    <p c-if="todos.length > 0">
-      <span c-text="remainingCount"></span> items left
+    <p g-if="todos.length > 0">
+      <span g-text="remainingCount"></span> items left
     </p>
   </todo-app>
 
