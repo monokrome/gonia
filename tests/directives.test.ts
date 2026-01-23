@@ -1,0 +1,211 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { parseHTML } from 'linkedom';
+import { text } from '../src/directives/text.js';
+import { html } from '../src/directives/html.js';
+import { show } from '../src/directives/show.js';
+import { createContext } from '../src/context.js';
+import { Mode, Expression, EvalFn } from '../src/types.js';
+
+describe('text directive', () => {
+  let document: Document;
+  let $eval: EvalFn;
+
+  beforeEach(() => {
+    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
+    document = dom.document;
+  });
+
+  it('should set element textContent', () => {
+    const ctx = createContext(Mode.SERVER, { name: 'Alice' });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('span');
+
+    text('name' as Expression, el, $eval);
+
+    expect(el.textContent).toBe('Alice');
+  });
+
+  it('should handle complex expressions', () => {
+    const ctx = createContext(Mode.SERVER, { first: 'John', last: 'Doe' });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('span');
+
+    text('first + " " + last' as Expression, el, $eval);
+
+    expect(el.textContent).toBe('John Doe');
+  });
+
+  it('should handle null values', () => {
+    const ctx = createContext(Mode.SERVER, { value: null });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('span');
+
+    text('value' as Expression, el, $eval);
+
+    expect(el.textContent).toBe('');
+  });
+
+  it('should handle undefined values', () => {
+    const ctx = createContext(Mode.SERVER, {});
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('span');
+
+    text('missing' as Expression, el, $eval);
+
+    expect(el.textContent).toBe('');
+  });
+
+  it('should convert numbers to strings', () => {
+    const ctx = createContext(Mode.SERVER, { count: 42 });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('span');
+
+    text('count' as Expression, el, $eval);
+
+    expect(el.textContent).toBe('42');
+  });
+
+  it('should escape HTML in values', () => {
+    const ctx = createContext(Mode.SERVER, { value: '<script>alert("xss")</script>' });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('span');
+
+    text('value' as Expression, el, $eval);
+
+    // textContent doesn't interpret HTML
+    expect(el.textContent).toBe('<script>alert("xss")</script>');
+    expect(el.innerHTML).not.toContain('<script>');
+  });
+});
+
+describe('html directive', () => {
+  let document: Document;
+  let $eval: EvalFn;
+
+  beforeEach(() => {
+    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
+    document = dom.document;
+  });
+
+  it('should set element innerHTML', () => {
+    const ctx = createContext(Mode.SERVER, { content: '<strong>Bold</strong>' });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div');
+
+    html('content' as Expression, el, $eval);
+
+    expect(el.innerHTML).toBe('<strong>Bold</strong>');
+  });
+
+  it('should handle null values', () => {
+    const ctx = createContext(Mode.SERVER, { content: null });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div');
+
+    html('content' as Expression, el, $eval);
+
+    expect(el.innerHTML).toBe('');
+  });
+
+  it('should handle undefined values', () => {
+    const ctx = createContext(Mode.SERVER, {});
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div');
+
+    html('missing' as Expression, el, $eval);
+
+    expect(el.innerHTML).toBe('');
+  });
+
+  it('should render nested HTML structures', () => {
+    const ctx = createContext(Mode.SERVER, {
+      content: '<ul><li>One</li><li>Two</li></ul>'
+    });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div');
+
+    html('content' as Expression, el, $eval);
+
+    expect(el.querySelectorAll('li').length).toBe(2);
+  });
+});
+
+describe('show directive', () => {
+  let document: Document;
+  let $eval: EvalFn;
+
+  beforeEach(() => {
+    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
+    document = dom.document;
+  });
+
+  it('should show element when value is truthy', () => {
+    const ctx = createContext(Mode.SERVER, { visible: true });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div') as unknown as HTMLElement;
+
+    show('visible' as Expression, el, $eval);
+
+    expect(el.style.display).toBe('');
+  });
+
+  it('should hide element when value is falsy', () => {
+    const ctx = createContext(Mode.SERVER, { visible: false });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div') as unknown as HTMLElement;
+
+    show('visible' as Expression, el, $eval);
+
+    expect(el.style.display).toBe('none');
+  });
+
+  it('should treat null as falsy', () => {
+    const ctx = createContext(Mode.SERVER, { value: null });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div') as unknown as HTMLElement;
+
+    show('value' as Expression, el, $eval);
+
+    expect(el.style.display).toBe('none');
+  });
+
+  it('should treat empty string as falsy', () => {
+    const ctx = createContext(Mode.SERVER, { value: '' });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div') as unknown as HTMLElement;
+
+    show('value' as Expression, el, $eval);
+
+    expect(el.style.display).toBe('none');
+  });
+
+  it('should treat zero as falsy', () => {
+    const ctx = createContext(Mode.SERVER, { value: 0 });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div') as unknown as HTMLElement;
+
+    show('value' as Expression, el, $eval);
+
+    expect(el.style.display).toBe('none');
+  });
+
+  it('should treat non-empty array as truthy', () => {
+    const ctx = createContext(Mode.SERVER, { items: [1, 2, 3] });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div') as unknown as HTMLElement;
+
+    show('items.length > 0' as Expression, el, $eval);
+
+    expect(el.style.display).toBe('');
+  });
+
+  it('should handle expression evaluation', () => {
+    const ctx = createContext(Mode.SERVER, { count: 5, threshold: 3 });
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div') as unknown as HTMLElement;
+
+    show('count > threshold' as Expression, el, $eval);
+
+    expect(el.style.display).toBe('');
+  });
+});

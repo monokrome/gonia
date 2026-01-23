@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cubist TODO</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 500px; margin: 2rem auto; padding: 0 1rem; }
+    .todo-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; }
+    .todo-item.done span { text-decoration: line-through; color: #888; }
+    input[type="text"] { flex: 1; padding: 0.5rem; font-size: 1rem; }
+    button { padding: 0.5rem 1rem; cursor: pointer; }
+    .filters { display: flex; gap: 0.5rem; margin: 1rem 0; }
+    .filters button.active { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <todo-app>
+    <h1>TODO List</h1>
+
+    <!-- Add new todo -->
+    <form c-on="submit: addTodo">
+      <input type="text" c-model="newTodo" placeholder="What needs to be done?" />
+      <button type="submit">Add</button>
+    </form>
+
+    <!-- Filter buttons -->
+    <div class="filters">
+      <button c-on="click: setFilter('all')" c-class="{ active: filter === 'all' }">All</button>
+      <button c-on="click: setFilter('active')" c-class="{ active: filter === 'active' }">Active</button>
+      <button c-on="click: setFilter('done')" c-class="{ active: filter === 'done' }">Done</button>
+    </div>
+
+    <!-- Todo list -->
+    <div c-for="todo in filteredTodos">
+      <div class="todo-item" c-class="{ done: todo.done }">
+        <input type="checkbox" c-model="todo.done" />
+        <span c-text="todo.text"></span>
+        <button c-on="click: removeTodo(todo.id)">×</button>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <p c-if="todos.length > 0">
+      <span c-text="remainingCount"></span> items left
+    </p>
+  </todo-app>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
