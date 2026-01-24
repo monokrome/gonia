@@ -237,11 +237,18 @@ export function gonia(options: GoniaPluginOptions = {}): Plugin {
       let result = code;
       let modified = false;
 
-      // Auto-detect directives if enabled
-      if (autoDirectives && !isGoniaInternal) {
-        const detected = detectDirectives(code, id, isDev);
+      // Collect directives to import
+      if (!isGoniaInternal) {
+        const detected = new Set<string>();
 
-        // Add explicitly included directives
+        // Auto-detect directives if enabled
+        if (autoDirectives) {
+          for (const name of detectDirectives(code, id, isDev)) {
+            detected.add(name);
+          }
+        }
+
+        // Add explicitly included directives (always, regardless of autoDirectives)
         for (const name of includeDirectives) {
           detected.add(name);
         }
