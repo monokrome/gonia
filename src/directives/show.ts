@@ -1,4 +1,5 @@
 import { directive, Directive, Expression, EvalFn } from '../types.js';
+import { effect } from '../reactivity.js';
 
 /**
  * Toggle element visibility based on an expression.
@@ -14,8 +15,10 @@ import { directive, Directive, Expression, EvalFn } from '../types.js';
  * ```
  */
 export const show: Directive<['$expr', '$element', '$eval']> = function show($expr: Expression, $element: Element, $eval: EvalFn) {
-  const value = $eval($expr);
-  ($element as HTMLElement).style.display = value ? '' : 'none';
+  effect(() => {
+    const value = $eval($expr);
+    ($element as HTMLElement).style.display = value ? '' : 'none';
+  });
 };
 
 directive('g-show', show);

@@ -1,4 +1,5 @@
 import { directive, Directive, Expression, EvalFn } from '../types.js';
+import { effect } from '../reactivity.js';
 
 /**
  * Set element's innerHTML from an expression.
@@ -15,7 +16,9 @@ import { directive, Directive, Expression, EvalFn } from '../types.js';
  * ```
  */
 export const html: Directive<['$expr', '$element', '$eval']> = function html($expr: Expression, $element: Element, $eval: EvalFn) {
-  $element.innerHTML = String($eval($expr) ?? '');
+  effect(() => {
+    $element.innerHTML = String($eval($expr) ?? '');
+  });
 };
 
 directive('g-html', html);

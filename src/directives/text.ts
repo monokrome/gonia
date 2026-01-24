@@ -1,4 +1,5 @@
 import { directive, Directive, Expression, EvalFn } from '../types.js';
+import { effect } from '../reactivity.js';
 
 /**
  * Set element's text content from an expression.
@@ -14,7 +15,9 @@ import { directive, Directive, Expression, EvalFn } from '../types.js';
  * ```
  */
 export const text: Directive<['$expr', '$element', '$eval']> = function text($expr: Expression, $element: Element, $eval: EvalFn) {
-  $element.textContent = String($eval($expr) ?? '');
+  effect(() => {
+    $element.textContent = String($eval($expr) ?? '');
+  });
 };
 
 directive('g-text', text);
