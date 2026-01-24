@@ -179,7 +179,7 @@ directive('g-template', template);
  *
  * @internal
  */
-export function getElementScope(el: Element): EffectScope | undefined {
+export function getEffectScope(el: Element): EffectScope | undefined {
   return elementScopes.get(el);
 }
 

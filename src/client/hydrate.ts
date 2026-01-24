@@ -324,7 +324,7 @@ function processNode(
  * this directive and processes them immediately.
  *
  * @param registry - The directive registry
- * @param name - Directive name (without c- prefix)
+ * @param name - Directive name (without g- prefix)
  * @param fn - The directive function
  */
 export function registerDirective(

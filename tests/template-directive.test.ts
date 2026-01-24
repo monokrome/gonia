@@ -4,7 +4,7 @@ import {
   template,
   findTemplateAncestor,
   getSavedContent,
-  getElementScope
+  getEffectScope
 } from '../src/directives/template.js';
 import { createMemoryRegistry } from '../src/templates.js';
 import { Expression, DirectivePriority } from '../src/types.js';
@@ -256,7 +256,7 @@ describe('template directive', () => {
 
     await template('scoped' as Expression, el, templates);
 
-    const scope = getElementScope(el);
+    const scope = getEffectScope(el);
     expect(scope).toBeDefined();
     expect(scope?.active).toBe(true);
   });
@@ -270,17 +270,17 @@ describe('template directive', () => {
     document.body.appendChild(el);
 
     await template('rerender' as Expression, el, templates);
-    const firstScope = getElementScope(el);
+    const firstScope = getEffectScope(el);
 
     await template('rerender' as Expression, el, templates);
-    const secondScope = getElementScope(el);
+    const secondScope = getEffectScope(el);
 
     expect(firstScope?.active).toBe(false);
     expect(secondScope?.active).toBe(true);
   });
 });
 
-describe('getElementScope', () => {
+describe('getEffectScope (template.ts)', () => {
   let document: Document;
 
   beforeEach(() => {
@@ -290,6 +290,6 @@ describe('getElementScope', () => {
 
   it('should return undefined for element without scope', () => {
     const el = document.createElement('div');
-    expect(getElementScope(el)).toBeUndefined();
+    expect(getEffectScope(el)).toBeUndefined();
   });
 });

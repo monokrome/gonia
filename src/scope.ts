@@ -12,6 +12,36 @@ import { getInjectables } from './inject.js';
 /** WeakMap to store element scopes */
 const elementScopes = new WeakMap<Element, Record<string, unknown>>();
 
+/** Root scope for top-level directives without explicit parent scope */
+let rootScope: Record<string, unknown> | null = null;
+
+/**
+ * Get or create the root scope.
+ *
+ * @remarks
+ * The root scope is used as a fallback for directives that aren't
+ * inside an element with `scope: true`. This allows top-level
+ * directives like `g-model` to work without requiring a parent scope.
+ *
+ * @returns The root reactive scope
+ */
+export function getRootScope(): Record<string, unknown> {
+  if (!rootScope) {
+    rootScope = reactive({});
+  }
+  return rootScope;
+}
+
+/**
+ * Clear the root scope.
+ *
+ * @remarks
+ * Primarily useful for testing.
+ */
+export function clearRootScope(): void {
+  rootScope = null;
+}
+
 /**
  * Create a new scope for an element.
  *
@@ -51,11 +81,13 @@ export function getElementScope(el: Element): Record<string, unknown> | undefine
  *
  * @param el - The element to start from
  * @param includeSelf - Whether to check the element itself (default: false)
- * @returns The nearest scope, or undefined if none found
+ * @param useRootFallback - Whether to return root scope if no parent found (default: true)
+ * @returns The nearest scope, or root scope if none found and fallback enabled
  */
 export function findParentScope(
   el: Element,
-  includeSelf = false
+  includeSelf = false,
+  useRootFallback = true
 ): Record<string, unknown> | undefined {
   let current: Element | null = includeSelf ? el : el.parentElement;
 
@@ -67,7 +99,8 @@ export function findParentScope(
     current = current.parentElement;
   }
 
-  return undefined;
+  // Fall back to root scope for top-level directives
+  return useRootFallback ? getRootScope() : undefined;
 }
 
 /**

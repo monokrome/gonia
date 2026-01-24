@@ -68,7 +68,7 @@ export interface Segment {
  *
  * @remarks
  * Splits a template string with `{{ expr }}` markers into segments
- * of static text and expressions. Used by directives like c-href
+ * of static text and expressions. Useful for directives
  * that support inline interpolation.
  *
  * @param template - The template string with interpolation markers

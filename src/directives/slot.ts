@@ -60,15 +60,15 @@ export const slot: Directive<['$expr', '$element', '$eval']> = function slot($ex
       return;
     }
 
-    const content = getSavedContent(templateEl)!;
+    const content = getSavedContent(templateEl);
+    if (!content) {
+      return;
+    }
+
     const slotContent = content.slots.get(name);
 
     if (slotContent) {
       $element.innerHTML = slotContent;
-      // MutationObserver will process the new content
-    } else {
-      // No content for this slot - could show fallback
-      // For now, leave any default content in the slot
     }
   };
 
@@ -100,7 +100,11 @@ export function processNativeSlot(el: Element): void {
     return;
   }
 
-  const content = getSavedContent(templateEl)!;
+  const content = getSavedContent(templateEl);
+  if (!content) {
+    return;
+  }
+
   const slotContent = content.slots.get(name);
 
   if (slotContent) {

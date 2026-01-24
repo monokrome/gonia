@@ -1,5 +1,5 @@
 /**
- * Cubist.js - A modern framework inspired by AngularJS 1.
+ * Gonia - A lightweight, SSR-first reactive UI library.
  *
  * @remarks
  * SSR-first design with HTML attributes as directives.
@@ -17,4 +17,5 @@ export { createTemplateRegistry, createMemoryRegistry, createServerRegistry } fr
 export type { TemplateRegistry } from './templates.js';
 export { findRoots, parseInterpolation } from './expression.js';
 export { getInjectables } from './inject.js';
+export { getRootScope, clearRootScope } from './scope.js';
 export * as directives from './directives/index.js';

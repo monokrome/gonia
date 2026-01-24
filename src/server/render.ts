@@ -51,7 +51,7 @@ function getSelector(registry: DirectiveRegistry): string {
  * Invalidates the cached selector so it will be rebuilt on next render.
  *
  * @param registry - The directive registry
- * @param name - Directive name (without c- prefix)
+ * @param name - Directive name (without g- prefix)
  * @param fn - The directive function
  */
 export function registerDirective(
