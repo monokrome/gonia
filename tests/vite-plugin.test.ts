@@ -137,7 +137,7 @@ describe('gonia vite plugin', () => {
     it('should include specified directives', () => {
       const code = 'const x = 1;'; // No directives in code
       const result = transform(code, 'test.ts', {
-        includeDirectives: ['text', 'for']
+        includeDirectives: ['g-text', 'g-for']
       });
 
       expect(result).toContain("import { text, cfor } from 'gonia/directives'");
@@ -146,7 +146,7 @@ describe('gonia vite plugin', () => {
     it('should add to auto-detected directives', () => {
       const code = 'const html = `<div g-show="visible"></div>`;';
       const result = transform(code, 'test.ts', {
-        includeDirectives: ['text']
+        includeDirectives: ['g-text']
       });
 
       expect(result).toContain('show');
@@ -158,7 +158,7 @@ describe('gonia vite plugin', () => {
     it('should exclude specified directives', () => {
       const code = 'const html = `<div g-text="msg" g-show="visible"></div>`;';
       const result = transform(code, 'test.ts', {
-        excludeDirectives: ['show']
+        excludeDirectives: ['g-show']
       });
 
       // Import should contain text but not show
@@ -170,8 +170,8 @@ describe('gonia vite plugin', () => {
     it('should exclude from includeDirectives too', () => {
       const code = 'const x = 1;';
       const result = transform(code, 'test.ts', {
-        includeDirectives: ['text', 'show'],
-        excludeDirectives: ['show']
+        includeDirectives: ['g-text', 'g-show'],
+        excludeDirectives: ['g-show']
       });
 
       expect(result).toContain('text');
@@ -193,7 +193,7 @@ describe('gonia vite plugin', () => {
       const code = 'const html = `<div g-text="msg"></div>`;';
       const result = transform(code, 'test.ts', {
         autoDirectives: false,
-        includeDirectives: ['for']
+        includeDirectives: ['g-for']
       });
 
       // Should not detect g-text but should include g-for
@@ -279,6 +279,53 @@ describe('gonia vite plugin', () => {
       const code = 'const html = `<div g-text="msg"></div>`;';
       const result = transform(code, 'node_modules/some-lib/index.ts');
 
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('directiveAttributePrefixes option', () => {
+    it('should use custom attribute prefixes', () => {
+      const code = 'const html = `<div v-text="msg"></div>`;';
+      const result = transform(code, 'test.ts', {
+        directiveAttributePrefixes: ['v-']
+      });
+
+      // v-text is not a built-in, so no import generated
+      // but the directive is detected
+      expect(result).toBeNull();
+    });
+
+    it('should support multiple prefixes', () => {
+      const code = 'const html = `<div g-text="msg" x-show="visible"></div>`;';
+      const result = transform(code, 'test.ts', {
+        directiveAttributePrefixes: ['g-', 'x-']
+      });
+
+      // g-text is built-in, x-show is not
+      expect(result).toContain('text');
+    });
+  });
+
+  describe('directiveElementPrefixes option', () => {
+    it('should detect element directives with prefix', () => {
+      const code = 'const html = `<app-header></app-header>`;';
+      const result = transform(code, 'test.ts', {
+        directiveElementPrefixes: ['app-']
+      });
+
+      // app-header is not a built-in, so null (no import to generate)
+      // but if it were in directiveSources, it would be imported
+      expect(result).toBeNull();
+    });
+
+    it('should default to attribute prefixes', () => {
+      const code = 'const html = `<g-custom></g-custom>`;';
+      const result = transform(code, 'test.ts', {
+        directiveAttributePrefixes: ['g-']
+        // directiveElementPrefixes defaults to ['g-']
+      });
+
+      // g-custom element detected but not a built-in
       expect(result).toBeNull();
     });
   });
