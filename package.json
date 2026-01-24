@@ -1,6 +1,6 @@
 {
   "name": "gonia",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A lightweight, SSR-first reactive UI library with declarative directives",
   "type": "module",
   "license": "MIT",
