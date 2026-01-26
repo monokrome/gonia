@@ -197,7 +197,7 @@ describe('g-if directive', () => {
   });
 
   describe('comment placeholder', () => {
-    it('should insert comment placeholder', () => {
+    it('should insert template placeholder', () => {
       const state = reactive({ show: true });
       const ctx = createContext(Mode.CLIENT, state);
       $eval = ctx.eval.bind(ctx);
@@ -209,10 +209,8 @@ describe('g-if directive', () => {
 
       cif('show' as Expression, element, $eval, state);
 
-      const comments = Array.from(container.childNodes).filter(
-        n => n.nodeType === 8
-      );
-      expect(comments.length).toBe(1);
+      const templates = container.querySelectorAll('template[data-g-if]');
+      expect(templates.length).toBe(1);
     });
 
     it('should maintain position with sibling elements', () => {
@@ -235,18 +233,20 @@ describe('g-if directive', () => {
 
       cif('show' as Expression, element, $eval, state);
 
-      // Should have: before, comment, after
-      expect(container.children.length).toBe(2);
+      // Should have: before, template placeholder, after
+      expect(container.children.length).toBe(3);
       expect(container.children[0].textContent).toBe('before');
-      expect(container.children[1].textContent).toBe('after');
+      expect(container.children[1].tagName).toBe('TEMPLATE');
+      expect(container.children[2].textContent).toBe('after');
 
       state.show = true;
 
-      // Should have: before, conditional, after
-      expect(container.children.length).toBe(3);
+      // Should have: before, template placeholder, conditional, after
+      expect(container.children.length).toBe(4);
       expect(container.children[0].textContent).toBe('before');
-      expect(container.children[1].textContent).toBe('conditional');
-      expect(container.children[2].textContent).toBe('after');
+      expect(container.children[1].tagName).toBe('TEMPLATE');
+      expect(container.children[2].textContent).toBe('conditional');
+      expect(container.children[3].textContent).toBe('after');
     });
   });
 

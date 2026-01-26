@@ -82,6 +82,8 @@ function getSelector(registry: DirectiveRegistry): string {
 
     // Also match native <slot> elements
     directiveSelectors.push('slot');
+    // Match template placeholders from SSR (g-if with false condition)
+    directiveSelectors.push('template[data-g-if]');
     cachedSelector = directiveSelectors.join(',');
   }
   return cachedSelector;
@@ -218,6 +220,23 @@ function processElement(
   // Handle native <slot> elements
   if (el.tagName === 'SLOT') {
     processNativeSlot(el);
+    return;
+  }
+
+  // Handle template placeholders from SSR (g-if with false condition)
+  if (el.tagName === 'TEMPLATE' && el.hasAttribute('data-g-if')) {
+    const ifDirective = registry.get('if');
+    if (ifDirective) {
+      const expr = el.getAttribute('data-g-if') || '';
+      const ctx = getContextForElement(el);
+      const config = createClientResolverConfig(el, ctx);
+      const registration = getDirective('g-if');
+      const args = resolveInjectables(ifDirective, expr, el, ctx.eval.bind(ctx), config, registration?.options.using);
+      const result = (ifDirective as (...args: unknown[]) => void | Promise<void>)(...args);
+      if (result instanceof Promise) {
+        return result;
+      }
+    }
     return;
   }
 

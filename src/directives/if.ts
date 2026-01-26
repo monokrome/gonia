@@ -107,10 +107,16 @@ export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> =
     return;
   }
 
-  // Server-side: evaluate once and remove if false
+  // Server-side: evaluate once and leave template placeholder if false
   if ($mode === Mode.SERVER) {
     const condition = $eval($expr);
     if (!condition) {
+      // Leave a template marker so client hydration knows where to insert
+      const placeholder = $element.ownerDocument.createElement('template');
+      placeholder.setAttribute('data-g-if', String($expr));
+      // Store original element inside template for hydration
+      placeholder.innerHTML = $element.outerHTML;
+      parent.insertBefore(placeholder, $element);
       $element.remove();
     } else {
       // Process child directives
@@ -120,13 +126,34 @@ export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> =
     return;
   }
 
-  // Client-side: set up reactive effect
-  const placeholder = $element.ownerDocument.createComment(` g-if: ${$expr} `);
-  parent.insertBefore(placeholder, $element);
+  // Client-side: check if this is a template placeholder (from SSR)
+  const isTemplatePlaceholder = $element.tagName === 'TEMPLATE' && $element.hasAttribute('data-g-if');
 
-  const template = $element.cloneNode(true) as Element;
-  template.removeAttribute('g-if');
-  $element.remove();
+  let placeholder: Element;
+  let template: Element;
+
+  if (isTemplatePlaceholder) {
+    // Hydrating SSR output - template is the placeholder, content is inside
+    placeholder = $element;
+    const content = ($element as HTMLTemplateElement).content.firstElementChild
+      || ($element as HTMLTemplateElement).innerHTML;
+    if (typeof content === 'string') {
+      const temp = $element.ownerDocument.createElement('div');
+      temp.innerHTML = content;
+      template = temp.firstElementChild!;
+    } else {
+      template = content.cloneNode(true) as Element;
+    }
+    template.removeAttribute('g-if');
+  } else {
+    // Pure client-side - create template placeholder
+    placeholder = $element.ownerDocument.createElement('template');
+    placeholder.setAttribute('data-g-if', String($expr));
+    parent.insertBefore(placeholder, $element);
+    template = $element.cloneNode(true) as Element;
+    template.removeAttribute('g-if');
+    $element.remove();
+  }
 
   let renderedElement: Element | null = null;
 

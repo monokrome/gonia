@@ -166,6 +166,11 @@ export async function render(
         const descendants = [...el.querySelectorAll(selector)];
 
         for (const match of [...matches, ...descendants]) {
+          // Skip elements inside template content (used as placeholders)
+          if (match.closest('template')) {
+            continue;
+          }
+
           // Handle native <slot> elements
           if (match.tagName === 'SLOT') {
             index.push({
