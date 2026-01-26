@@ -12,11 +12,25 @@
  * @packageDocumentation
  */
 
+import type { ContextKey } from './context-registry.js';
+
+/**
+ * An injectable dependency - either a string name or a typed context key.
+ */
+export type Injectable = string | ContextKey<unknown>;
+
+/**
+ * Check if a value is a ContextKey.
+ */
+export function isContextKey(value: unknown): value is ContextKey<unknown> {
+  return typeof value === 'object' && value !== null && 'id' in value && typeof (value as ContextKey<unknown>).id === 'symbol';
+}
+
 /**
  * A function with optional `$inject` annotation.
  */
 interface InjectableFunction extends Function {
-  $inject?: readonly string[];
+  $inject?: readonly Injectable[];
 }
 
 /**
@@ -27,7 +41,7 @@ interface InjectableFunction extends Function {
  * In production, always use `$inject` to survive minification.
  *
  * @param fn - The function to inspect
- * @returns Array of dependency names
+ * @returns Array of dependency names or context keys
  *
  * @example
  * ```ts
@@ -35,14 +49,14 @@ interface InjectableFunction extends Function {
  * const myDirective = (expr, ctx, el, http, userService) => {};
  * getInjectables(myDirective); // ['expr', 'ctx', 'el', 'http', 'userService']
  *
- * // Production - explicit annotation
- * myDirective.$inject = ['http', 'userService'];
- * getInjectables(myDirective); // ['http', 'userService']
+ * // Production - explicit annotation with context keys
+ * myDirective.$inject = ['$element', SlotContentContext];
+ * getInjectables(myDirective); // ['$element', SlotContentContext]
  * ```
  */
-export function getInjectables(fn: InjectableFunction): string[] {
+export function getInjectables(fn: InjectableFunction): Injectable[] {
   if ('$inject' in fn && Array.isArray(fn.$inject)) {
-    return fn.$inject;
+    return fn.$inject as Injectable[];
   }
   return parseFunctionParams(fn);
 }

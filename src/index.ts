@@ -16,7 +16,17 @@ export type { EffectScope } from './reactivity.js';
 export { createTemplateRegistry, createMemoryRegistry, createServerRegistry } from './templates.js';
 export type { TemplateRegistry } from './templates.js';
 export { findRoots, parseInterpolation } from './expression.js';
-export { getInjectables } from './inject.js';
+export { getInjectables, isContextKey } from './inject.js';
+export type { Injectable } from './inject.js';
 export { getRootScope, clearRootScope } from './scope.js';
 export { findAncestor } from './dom.js';
+export {
+  createContextKey,
+  registerContext,
+  resolveContext,
+  hasContext,
+  removeContext,
+  clearContexts
+} from './context-registry.js';
+export type { ContextKey } from './context-registry.js';
 export * as directives from './directives/index.js';

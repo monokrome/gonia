@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { parseHTML } from 'linkedom';
 import { slot, processNativeSlot } from '../src/directives/slot.js';
-import { template, getSavedContent } from '../src/directives/template.js';
+import { template, getSavedContent, SlotContent } from '../src/directives/template.js';
 import { createMemoryRegistry } from '../src/templates.js';
 import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
+import { resolveContext } from '../src/context-registry.js';
+import { SlotContentContext } from '../src/directives/template.js';
 
 describe('slot directive', () => {
   let document: Document;
@@ -32,7 +34,8 @@ describe('slot directive', () => {
       const slotTarget = templateEl.querySelector('#slot-target');
       if (slotTarget) {
         // No name attribute, no expression - should use 'default'
-        slot('' as Expression, slotTarget, $eval);
+        const content = resolveContext(slotTarget, SlotContentContext);
+        slot('' as Expression, slotTarget, $eval, content);
         expect(slotTarget.innerHTML).toBe('<p>Default content</p>');
       }
     });
@@ -43,7 +46,7 @@ describe('slot directive', () => {
       slotEl.setAttribute('name', 'header');
       parent.appendChild(slotEl);
 
-      slot('' as Expression, slotEl, $eval);
+      slot('' as Expression, slotEl, $eval, undefined);
 
       // Without template ancestor, nothing happens
       expect(slotEl.innerHTML).toBe('');
@@ -54,7 +57,7 @@ describe('slot directive', () => {
       const dynamicEval = dynamicCtx.eval.bind(dynamicCtx);
       const slotEl = document.createElement('div');
 
-      slot('activeSlot' as Expression, slotEl, dynamicEval);
+      slot('activeSlot' as Expression, slotEl, dynamicEval, undefined);
 
       // Without template ancestor, nothing happens but expression is evaluated
       expect(slotEl.innerHTML).toBe('');
@@ -67,7 +70,7 @@ describe('slot directive', () => {
       slotEl.innerHTML = '<span>Fallback</span>';
       document.body.appendChild(slotEl);
 
-      slot('' as Expression, slotEl, $eval);
+      slot('' as Expression, slotEl, $eval, undefined);
 
       expect(slotEl.innerHTML).toBe('<span>Fallback</span>');
     });
@@ -76,7 +79,7 @@ describe('slot directive', () => {
       const slotEl = document.createElement('div');
 
       expect(() => {
-        slot('' as Expression, slotEl, $eval);
+        slot('' as Expression, slotEl, $eval, undefined);
       }).not.toThrow();
     });
   });
@@ -95,7 +98,8 @@ describe('slot directive', () => {
 
       const slotTarget = templateEl.querySelector('#slot-target');
       if (slotTarget) {
-        slot('' as Expression, slotTarget, $eval);
+        const content = resolveContext(slotTarget, SlotContentContext);
+        slot('' as Expression, slotTarget, $eval, content);
         expect(slotTarget.innerHTML).toBe('<p>Transcluded content</p>');
       }
     });
@@ -116,12 +120,14 @@ describe('slot directive', () => {
 
       if (headerSlot) {
         headerSlot.setAttribute('name', 'header');
-        slot('' as Expression, headerSlot, $eval);
+        const content = resolveContext(headerSlot, SlotContentContext);
+        slot('' as Expression, headerSlot, $eval, content);
         expect(headerSlot.innerHTML).toBe('<h1 slot="header">Title</h1>');
       }
 
       if (mainSlot) {
-        slot('' as Expression, mainSlot, $eval);
+        const content = resolveContext(mainSlot, SlotContentContext);
+        slot('' as Expression, mainSlot, $eval, content);
         expect(mainSlot.innerHTML).toBe('<p>Body</p>');
       }
     });
@@ -140,7 +146,8 @@ describe('slot directive', () => {
       const slotTarget = templateEl.querySelector('#slot-target');
       if (slotTarget) {
         slotTarget.setAttribute('name', 'nonexistent');
-        slot('' as Expression, slotTarget, $eval);
+        const content = resolveContext(slotTarget, SlotContentContext);
+        slot('' as Expression, slotTarget, $eval, content);
         // Fallback preserved when no matching content
         expect(slotTarget.innerHTML).toBe('<span>Fallback</span>');
       }

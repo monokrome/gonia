@@ -12,22 +12,33 @@
 import { directive, Directive, DirectivePriority, Expression } from '../types.js';
 import { createEffectScope, EffectScope } from '../reactivity.js';
 import { findAncestor } from '../dom.js';
+import {
+  createContextKey,
+  registerContext,
+  resolveContext,
+  hasContext,
+  ContextKey
+} from '../context-registry.js';
 
 /** Type for $templates injectable */
 type Templates = { get(name: string): Promise<string> };
 
 /**
  * Saved slot content for an element.
- *
- * @internal
  */
 export interface SlotContent {
   /** Content by slot name. 'default' for unnamed content. */
   slots: Map<string, string>;
 }
 
-/** WeakMap storing saved children per element. */
-const savedContent = new WeakMap<Element, SlotContent>();
+/**
+ * Context key for slot content.
+ *
+ * @remarks
+ * Templates register their slot content using this context, and
+ * slot directives resolve it to find their content.
+ */
+export const SlotContentContext: ContextKey<SlotContent> = createContextKey<SlotContent>('SlotContent');
 
 /** WeakMap storing effect scopes per element for cleanup. */
 const elementScopes = new WeakMap<Element, EffectScope>();
@@ -41,7 +52,7 @@ const renderingChain = new WeakMap<Element, Set<string>>();
  * @internal
  */
 export function getSavedContent(el: Element): SlotContent | undefined {
-  return savedContent.get(el);
+  return resolveContext(el, SlotContentContext, true);
 }
 
 /**
@@ -50,7 +61,7 @@ export function getSavedContent(el: Element): SlotContent | undefined {
  * @internal
  */
 export function findTemplateAncestor(el: Element): Element | null {
-  return findAncestor(el, (e) => savedContent.has(e) ? e : undefined) ?? null;
+  return findAncestor(el, (e) => hasContext(e, SlotContentContext) ? e : undefined) ?? null;
 }
 
 /**
@@ -141,11 +152,11 @@ export const template: Directive<['$expr', '$element', '$templates']> = async fu
     return;
   }
 
-  // Save children for slots
+  // Save children for slots using typed context
   const slotContent: SlotContent = {
     slots: extractSlotContent($element)
   };
-  savedContent.set($element, slotContent);
+  registerContext($element, SlotContentContext, slotContent);
 
   // Track this template in the chain
   const newChain = new Set(chain);

@@ -7,8 +7,9 @@
 import { reactive } from './reactivity.js';
 import { createContext } from './context.js';
 import { Mode, Directive, DirectiveOptions, Expression, EvalFn } from './types.js';
-import { getInjectables } from './inject.js';
+import { getInjectables, isContextKey } from './inject.js';
 import { findAncestor } from './dom.js';
+import { resolveContext } from './context-registry.js';
 
 /** WeakMap to store element scopes */
 const elementScopes = new WeakMap<Element, Record<string, unknown>>();
@@ -140,7 +141,13 @@ export function registerDirectiveElement(
 
       // Resolve dependencies and call directive
       const inject = getInjectables(fn);
-      const args = inject.map((dep: string) => {
+      const args = inject.map((dep) => {
+        // Handle ContextKey injection
+        if (isContextKey(dep)) {
+          return resolveContext(this, dep);
+        }
+
+        // Handle string-based injection
         switch (dep) {
           case '$element':
             return this;

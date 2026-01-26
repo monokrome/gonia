@@ -11,14 +11,16 @@
 
 import { directive, Directive, Expression, EvalFn } from '../types.js';
 import { effect } from '../reactivity.js';
-import { findTemplateAncestor, getSavedContent } from './template.js';
+import { resolveContext } from '../context-registry.js';
+import { SlotContentContext, SlotContent } from './template.js';
 
 /**
  * Slot directive for content transclusion.
  *
  * @remarks
  * Finds the nearest template ancestor and transcludes the
- * matching slot content into itself.
+ * matching slot content into itself. The SlotContentContext
+ * is automatically injected via DI.
  *
  * If the slot name is an expression, wraps in an effect
  * for reactivity.
@@ -39,7 +41,12 @@ import { findTemplateAncestor, getSavedContent } from './template.js';
  * <slot></slot>
  * ```
  */
-export const slot: Directive<['$expr', '$element', '$eval']> = function slot($expr: Expression, $element: Element, $eval: EvalFn) {
+export const slot: Directive<['$expr', '$element', '$eval', typeof SlotContentContext]> = function slot(
+  $expr: Expression,
+  $element: Element,
+  $eval: EvalFn,
+  $slotContent: SlotContent | undefined
+) {
   // Determine slot name
   // If expr is empty, check for name attribute, otherwise use 'default'
   const getName = (): string => {
@@ -53,19 +60,13 @@ export const slot: Directive<['$expr', '$element', '$eval']> = function slot($ex
 
   const transclude = () => {
     const name = getName();
-    const templateEl = findTemplateAncestor($element);
 
-    if (!templateEl) {
-      // No template ancestor - leave slot as-is or clear it
+    // SlotContentContext is injected via DI
+    if (!$slotContent) {
       return;
     }
 
-    const content = getSavedContent(templateEl);
-    if (!content) {
-      return;
-    }
-
-    const slotContent = content.slots.get(name);
+    const slotContent = $slotContent.slots.get(name);
 
     if (slotContent) {
       $element.innerHTML = slotContent;
@@ -80,6 +81,7 @@ export const slot: Directive<['$expr', '$element', '$eval']> = function slot($ex
     transclude();
   }
 };
+slot.$inject = ['$expr', '$element', '$eval', SlotContentContext];
 
 directive('g-slot', slot);
 
@@ -94,13 +96,9 @@ directive('g-slot', slot);
  */
 export function processNativeSlot(el: Element): void {
   const name = el.getAttribute('name') ?? 'default';
-  const templateEl = findTemplateAncestor(el);
 
-  if (!templateEl) {
-    return;
-  }
-
-  const content = getSavedContent(templateEl);
+  // Resolve slot content from nearest template ancestor
+  const content = resolveContext(el, SlotContentContext);
   if (!content) {
     return;
   }

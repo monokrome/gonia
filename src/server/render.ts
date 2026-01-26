@@ -11,6 +11,8 @@ import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
 import { FOR_PROCESSED_ATTR, FOR_TEMPLATE_ATTR } from '../directives/for.js';
 import { IF_PROCESSED_ATTR } from '../directives/if.js';
+import { isContextKey } from '../inject.js';
+import { resolveContext } from '../context-registry.js';
 
 /**
  * Registry of directives by name.
@@ -87,8 +89,14 @@ function resolveDependencies(
 ): unknown[] {
   const inject = directive.$inject ?? ['$expr', '$element', '$eval'];
 
-  return inject.map(name => {
-    switch (name) {
+  return inject.map(dep => {
+    // Handle ContextKey injection
+    if (isContextKey(dep)) {
+      return resolveContext(el, dep);
+    }
+
+    // Handle string-based injection
+    switch (dep) {
       case '$expr':
         return expr;
       case '$element':
@@ -103,24 +111,24 @@ function resolveDependencies(
         return Mode.SERVER;
       default: {
         // Look up in ancestor DI providers first (provide option)
-        const diProvided = resolveFromDIProviders(el, name);
+        const diProvided = resolveFromDIProviders(el, dep);
         if (diProvided !== undefined) {
           return diProvided;
         }
 
         // Look up in global services registry
-        const service = services.get(name);
+        const service = services.get(dep);
         if (service !== undefined) {
           return service;
         }
 
         // Look up in ancestor context providers ($context)
-        const contextProvided = resolveFromProviders(el, name);
+        const contextProvided = resolveFromProviders(el, dep);
         if (contextProvided !== undefined) {
           return contextProvided;
         }
 
-        throw new Error(`Unknown injectable: ${name}`);
+        throw new Error(`Unknown injectable: ${dep}`);
       }
     }
   });

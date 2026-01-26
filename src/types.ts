@@ -4,6 +4,9 @@
  * @packageDocumentation
  */
 
+import type { ContextKey } from './context-registry.js';
+import type { Injectable } from './inject.js';
+
 /**
  * Execution mode for the framework.
  */
@@ -61,9 +64,14 @@ export interface InjectableRegistry {
 }
 
 /**
- * Maps a tuple of injectable names to their corresponding types.
+ * Extract the value type from a ContextKey.
+ */
+type ContextKeyValue<K> = K extends ContextKey<infer V> ? V : never;
+
+/**
+ * Maps a tuple of injectable names or context keys to their corresponding types.
  *
- * @typeParam K - Tuple of injectable name strings
+ * @typeParam K - Tuple of injectable names (strings) or ContextKey objects
  * @typeParam T - Type map (defaults to InjectableRegistry)
  *
  * @example
@@ -71,16 +79,21 @@ export interface InjectableRegistry {
  * type Args = MapInjectables<['$element', '$state']>;
  * // => [Element, Record<string, unknown>]
  *
- * // With custom type map
- * type Args2 = MapInjectables<['$element', 'custom'], { $element: Element; custom: MyType }>;
- * // => [Element, MyType]
+ * // With context keys
+ * const MyContext = createContextKey<{ value: number }>('MyContext');
+ * type Args2 = MapInjectables<['$element', typeof MyContext]>;
+ * // => [Element, { value: number }]
  * ```
  */
 export type MapInjectables<
-  K extends readonly string[],
+  K extends readonly (string | ContextKey<unknown>)[],
   T = InjectableRegistry
 > = {
-  [I in keyof K]: K[I] extends keyof T ? T[K[I]] : unknown
+  [I in keyof K]: K[I] extends ContextKey<unknown>
+    ? ContextKeyValue<K[I]>
+    : K[I] extends keyof T
+      ? T[K[I]]
+      : unknown
 };
 
 /**
@@ -160,9 +173,19 @@ export interface DirectiveMeta<T = InjectableRegistry> {
    * - `$eval`: Function to evaluate expressions: `(expr) => value`
    * - `$state`: Local reactive state object (isolated per element)
    * - Any registered service names
+   * - Any `ContextKey` for typed context resolution
    * - Any names provided by ancestor directives via `$context`
+   *
+   * @example
+   * ```ts
+   * // String-based injection
+   * myDirective.$inject = ['$element', '$state'];
+   *
+   * // With typed context keys
+   * myDirective.$inject = ['$element', SlotContentContext];
+   * ```
    */
-  $inject?: readonly string[];
+  $inject?: readonly Injectable[];
 
   /**
    * Names this directive exposes as context to descendants.
@@ -202,9 +225,9 @@ export interface DirectiveMeta<T = InjectableRegistry> {
  *
  * @remarks
  * Use this type annotation to get contextual typing for directive parameters.
- * The tuple of keys maps to parameter types from InjectableRegistry.
+ * The tuple of keys maps to parameter types from InjectableRegistry or ContextKey types.
  *
- * @typeParam K - Tuple of injectable key names
+ * @typeParam K - Tuple of injectable key names or ContextKey objects
  * @typeParam T - Optional custom type map to extend InjectableRegistry
  *
  * @example
@@ -219,6 +242,12 @@ export interface DirectiveMeta<T = InjectableRegistry> {
  *   $element.textContent = String($eval($expr) ?? '');
  * };
  *
+ * // With typed context keys
+ * const slot: Directive<['$element', typeof SlotContentContext]> = ($element, content) => {
+ *   // content is typed as SlotContent
+ *   console.log(content.slots);
+ * };
+ *
  * // With custom types (extend InjectableRegistry first)
  * declare module 'gonia' {
  *   interface InjectableRegistry {
@@ -231,7 +260,7 @@ export interface DirectiveMeta<T = InjectableRegistry> {
  * ```
  */
 export type Directive<
-  K extends readonly (string & keyof (InjectableRegistry & T))[] = readonly (string & keyof InjectableRegistry)[],
+  K extends readonly (string | ContextKey<unknown>)[] = readonly (string & keyof InjectableRegistry)[],
   T extends Record<string, unknown> = {}
 > = ((...args: MapInjectables<K, InjectableRegistry & T>) => void | Promise<void>) & DirectiveMeta<InjectableRegistry & T>;
 

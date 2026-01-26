@@ -10,7 +10,8 @@ import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
 import { FOR_PROCESSED_ATTR } from '../directives/for.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
-import { getInjectables } from '../inject.js';
+import { getInjectables, isContextKey } from '../inject.js';
+import { resolveContext } from '../context-registry.js';
 
 // Built-in directives
 import { text } from '../directives/text.js';
@@ -178,7 +179,14 @@ function resolveDependencies(
 ): unknown[] {
   const inject = getInjectables(directive);
 
-  return inject.map(name => {
+  return inject.map(dep => {
+    // Handle ContextKey injection
+    if (isContextKey(dep)) {
+      return resolveContext(el, dep);
+    }
+
+    // Handle string-based injection
+    const name = dep;
     switch (name) {
       case '$expr':
         return expr;
@@ -446,7 +454,13 @@ async function processDirectiveElements(): Promise<void> {
         const ctx = createContext(Mode.CLIENT, scope);
 
         const inject = getInjectables(fn);
-        const args = inject.map((dep: string) => {
+        const args = inject.map((dep) => {
+          // Handle ContextKey injection
+          if (isContextKey(dep)) {
+            return resolveContext(el, dep);
+          }
+
+          // Handle string-based injection
           switch (dep) {
             case '$element':
               return el;
