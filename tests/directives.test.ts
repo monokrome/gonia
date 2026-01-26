@@ -5,6 +5,7 @@ import { html } from '../src/directives/html.js';
 import { show } from '../src/directives/show.js';
 import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn, directive, getDirective, clearDirectives, configureDirective } from '../src/types.js';
+import { createContextKey, registerContext } from '../src/context-registry.js';
 
 describe('text directive', () => {
   let document: Document;
@@ -266,5 +267,31 @@ describe('configureDirective', () => {
     const reg = getDirective('test-directive');
     expect(reg?.options.scope).toBe(true);
     expect(reg?.options.template).toBe('<new></new>');
+  });
+
+  it('should support using option for context dependencies', () => {
+    const ThemeContext = createContextKey<{ mode: string }>('Theme');
+    const UserContext = createContextKey<{ name: string }>('User');
+
+    const fn = () => {};
+    directive('context-consumer', fn, {
+      using: [ThemeContext, UserContext]
+    });
+
+    const reg = getDirective('context-consumer');
+    expect(reg?.options.using).toEqual([ThemeContext, UserContext]);
+    expect(reg?.options.using?.length).toBe(2);
+  });
+
+  it('should allow configuring using option after registration', () => {
+    const ThemeContext = createContextKey<{ mode: string }>('Theme');
+
+    const fn = () => {};
+    directive('late-context', fn);
+
+    configureDirective('late-context', { using: [ThemeContext] });
+
+    const reg = getDirective('late-context');
+    expect(reg?.options.using).toEqual([ThemeContext]);
   });
 });

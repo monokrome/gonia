@@ -11,7 +11,7 @@ import { getLocalState, registerProvider, resolveFromProviders, registerDIProvid
 import { FOR_PROCESSED_ATTR } from '../directives/for.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
 import { getInjectables, isContextKey } from '../inject.js';
-import { resolveContext } from '../context-registry.js';
+import { resolveContext, ContextKey } from '../context-registry.js';
 
 // Built-in directives
 import { text } from '../directives/text.js';
@@ -94,6 +94,7 @@ interface DirectiveMatch {
   name: string;
   directive: Directive;
   expr: string;
+  using?: ContextKey<unknown>[];
 }
 
 /**
@@ -110,7 +111,14 @@ function getDirectivesForElement(
   for (const [name, directive] of registry) {
     const attr = el.getAttribute(`g-${name}`);
     if (attr !== null) {
-      directives.push({ name, directive, expr: attr });
+      // Look up options from the global directive registry
+      const registration = getDirective(`g-${name}`);
+      directives.push({
+        name,
+        directive,
+        expr: attr,
+        using: registration?.options.using
+      });
     }
   }
 
@@ -167,7 +175,7 @@ export function setElementContext(el: Element, ctx: Context): void {
 }
 
 /**
- * Resolve dependencies for a directive based on its $inject array.
+ * Resolve dependencies for a directive based on its $inject array and using option.
  *
  * @internal
  */
@@ -175,11 +183,12 @@ function resolveDependencies(
   directive: Directive,
   expr: Expression,
   el: Element,
-  ctx: Context
+  ctx: Context,
+  using?: ContextKey<unknown>[]
 ): unknown[] {
   const inject = getInjectables(directive);
 
-  return inject.map(dep => {
+  const args = inject.map(dep => {
     // Handle ContextKey injection
     if (isContextKey(dep)) {
       return resolveContext(el, dep);
@@ -225,6 +234,15 @@ function resolveDependencies(
       }
     }
   });
+
+  // Append contexts from `using` option
+  if (using?.length) {
+    for (const key of using) {
+      args.push(resolveContext(el, key));
+    }
+  }
+
+  return args;
 }
 
 /**
@@ -257,9 +275,9 @@ function processElement(
   // Process directives sequentially, handling async ones properly
   let chain: Promise<void> | undefined;
 
-  for (const { directive, expr } of directives) {
+  for (const { directive, expr, using } of directives) {
     const processDirective = () => {
-      const args = resolveDependencies(directive, expr as Expression, el, ctx);
+      const args = resolveDependencies(directive, expr as Expression, el, ctx, using);
       const result = (directive as (...args: unknown[]) => void | Promise<void>)(...args);
 
       // Register as provider if directive declares $context
@@ -422,8 +440,8 @@ async function processDirectiveElements(): Promise<void> {
     const { fn, options } = registration;
 
     // Only process directives with templates (web components),
-    // scope: true, or provide (DI overrides)
-    if (!options.template && !options.scope && !options.provide) {
+    // scope: true, provide (DI overrides), or using (context dependencies)
+    if (!options.template && !options.scope && !options.provide && !options.using) {
       continue;
     }
 
@@ -454,7 +472,7 @@ async function processDirectiveElements(): Promise<void> {
         const ctx = createContext(Mode.CLIENT, scope);
 
         const inject = getInjectables(fn);
-        const args = inject.map((dep) => {
+        const args: unknown[] = inject.map((dep) => {
           // Handle ContextKey injection
           if (isContextKey(dep)) {
             return resolveContext(el, dep);
@@ -472,6 +490,13 @@ async function processDirectiveElements(): Promise<void> {
               return undefined;
           }
         });
+
+        // Append contexts from `using` option
+        if (options.using?.length) {
+          for (const key of options.using) {
+            args.push(resolveContext(el, key));
+          }
+        }
 
         const result = fn(...args);
 

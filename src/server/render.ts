@@ -5,14 +5,14 @@
  */
 
 import { parseHTML } from 'linkedom';
-import { Mode, Directive, Expression, DirectivePriority, Context } from '../types.js';
+import { Mode, Directive, Expression, DirectivePriority, Context, getDirective } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
 import { FOR_PROCESSED_ATTR, FOR_TEMPLATE_ATTR } from '../directives/for.js';
 import { IF_PROCESSED_ATTR } from '../directives/if.js';
 import { isContextKey } from '../inject.js';
-import { resolveContext } from '../context-registry.js';
+import { resolveContext, ContextKey } from '../context-registry.js';
 
 /**
  * Registry of directives by name.
@@ -76,7 +76,7 @@ export function registerService(name: string, service: unknown): void {
 }
 
 /**
- * Resolve dependencies for a directive based on its $inject array.
+ * Resolve dependencies for a directive based on its $inject array and using option.
  *
  * @internal
  */
@@ -85,11 +85,12 @@ function resolveDependencies(
   expr: Expression,
   el: Element,
   ctx: Context,
-  rootState: Record<string, unknown>
+  rootState: Record<string, unknown>,
+  using?: ContextKey<unknown>[]
 ): unknown[] {
   const inject = directive.$inject ?? ['$expr', '$element', '$eval'];
 
-  return inject.map(dep => {
+  const args = inject.map(dep => {
     // Handle ContextKey injection
     if (isContextKey(dep)) {
       return resolveContext(el, dep);
@@ -132,6 +133,15 @@ function resolveDependencies(
       }
     }
   });
+
+  // Append contexts from `using` option
+  if (using?.length) {
+    for (const key of using) {
+      args.push(resolveContext(el, key));
+    }
+  }
+
+  return args;
 }
 
 /**
@@ -146,6 +156,7 @@ interface IndexedDirective {
   expr: Expression;
   priority: number;
   isNativeSlot?: boolean;
+  using?: ContextKey<unknown>[];
 }
 
 /**
@@ -214,12 +225,15 @@ export async function render(
           for (const [name, directive] of registry) {
             const attr = match.getAttribute(`g-${name}`);
             if (attr !== null) {
+              // Look up options from the global directive registry
+              const registration = getDirective(`g-${name}`);
               index.push({
                 el: match,
                 name,
                 directive,
                 expr: attr as Expression,
-                priority: directive.priority ?? DirectivePriority.NORMAL
+                priority: directive.priority ?? DirectivePriority.NORMAL,
+                using: registration?.options.using
               });
             }
           }
@@ -301,7 +315,7 @@ export async function render(
         if (item.isNativeSlot) {
           processNativeSlot(item.el as unknown as HTMLSlotElement);
         } else {
-          const args = resolveDependencies(item.directive!, item.expr, item.el, ctx, state);
+          const args = resolveDependencies(item.directive!, item.expr, item.el, ctx, state, item.using);
           await (item.directive as (...args: unknown[]) => void | Promise<void>)(...args);
 
           // Register as context provider if directive declares $context

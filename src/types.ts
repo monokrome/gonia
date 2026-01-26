@@ -351,6 +351,35 @@ export interface DirectiveOptions {
    * ```
    */
   provide?: Record<string, unknown>;
+
+  /**
+   * Context keys this directive uses.
+   *
+   * @remarks
+   * Declares which contexts the directive depends on. The resolved
+   * context values are appended to the directive function parameters
+   * in the order they appear in this array.
+   *
+   * This enables:
+   * - Static analysis of context dependencies
+   * - Automatic `$inject` generation by the Vite plugin
+   * - Type-safe context access without manual `resolveContext` calls
+   *
+   * @example
+   * ```ts
+   * const ThemeContext = createContextKey<{ mode: 'light' | 'dark' }>('Theme');
+   * const UserContext = createContextKey<{ name: string }>('User');
+   *
+   * directive('themed-greeting', ($element, $state, theme, user) => {
+   *   // theme and user are resolved from the using array
+   *   $element.textContent = `Hello ${user.name}!`;
+   *   $element.className = theme.mode;
+   * }, {
+   *   using: [ThemeContext, UserContext]
+   * });
+   * ```
+   */
+  using?: ContextKey<unknown>[];
 }
 
 /** Registered directive with options */
