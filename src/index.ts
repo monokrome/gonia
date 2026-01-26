@@ -18,4 +18,5 @@ export type { TemplateRegistry } from './templates.js';
 export { findRoots, parseInterpolation } from './expression.js';
 export { getInjectables } from './inject.js';
 export { getRootScope, clearRootScope } from './scope.js';
+export { findAncestor } from './dom.js';
 export * as directives from './directives/index.js';

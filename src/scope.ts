@@ -8,6 +8,7 @@ import { reactive } from './reactivity.js';
 import { createContext } from './context.js';
 import { Mode, Directive, DirectiveOptions, Expression, EvalFn } from './types.js';
 import { getInjectables } from './inject.js';
+import { findAncestor } from './dom.js';
 
 /** WeakMap to store element scopes */
 const elementScopes = new WeakMap<Element, Record<string, unknown>>();
@@ -89,14 +90,10 @@ export function findParentScope(
   includeSelf = false,
   useRootFallback = true
 ): Record<string, unknown> | undefined {
-  let current: Element | null = includeSelf ? el : el.parentElement;
+  const scope = findAncestor(el, (e) => elementScopes.get(e), includeSelf);
 
-  while (current) {
-    const scope = elementScopes.get(current);
-    if (scope) {
-      return scope;
-    }
-    current = current.parentElement;
+  if (scope) {
+    return scope;
   }
 
   // Fall back to root scope for top-level directives

@@ -6,6 +6,7 @@
 
 import { Directive } from './types.js';
 import { reactive } from './reactivity.js';
+import { findAncestor } from './dom.js';
 
 /**
  * Local state stored per element.
@@ -113,17 +114,13 @@ export function resolveFromDIProviders(
   el: Element,
   name: string
 ): unknown | undefined {
-  let current: Element | null = el.parentElement;
-
-  while (current) {
-    const provideMap = diProviders.get(current);
+  return findAncestor(el, (e) => {
+    const provideMap = diProviders.get(e);
     if (provideMap && name in provideMap) {
       return provideMap[name];
     }
-    current = current.parentElement;
-  }
-
-  return undefined;
+    return undefined;
+  });
 }
 
 /**
@@ -143,17 +140,13 @@ export function resolveFromProviders(
   el: Element,
   name: string
 ): Record<string, unknown> | undefined {
-  let current: Element | null = el.parentElement;
-
-  while (current) {
-    const info = contextProviders.get(current);
+  return findAncestor(el, (e) => {
+    const info = contextProviders.get(e);
     if (info?.directive.$context?.includes(name)) {
       return info.state;
     }
-    current = current.parentElement;
-  }
-
-  return undefined;
+    return undefined;
+  });
 }
 
 /**

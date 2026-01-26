@@ -11,6 +11,7 @@
 
 import { directive, Directive, DirectivePriority, Expression } from '../types.js';
 import { createEffectScope, EffectScope } from '../reactivity.js';
+import { findAncestor } from '../dom.js';
 
 /** Type for $templates injectable */
 type Templates = { get(name: string): Promise<string> };
@@ -49,14 +50,7 @@ export function getSavedContent(el: Element): SlotContent | undefined {
  * @internal
  */
 export function findTemplateAncestor(el: Element): Element | null {
-  let current = el.parentElement;
-  while (current) {
-    if (savedContent.has(current)) {
-      return current;
-    }
-    current = current.parentElement;
-  }
-  return null;
+  return findAncestor(el, (e) => savedContent.has(e) ? e : undefined) ?? null;
 }
 
 /**
