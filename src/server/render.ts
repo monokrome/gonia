@@ -11,7 +11,7 @@ import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
 import { FOR_PROCESSED_ATTR, FOR_TEMPLATE_ATTR } from '../directives/for.js';
 import { IF_PROCESSED_ATTR } from '../directives/if.js';
-import { isContextKey } from '../inject.js';
+import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { resolveContext, ContextKey } from '../context-registry.js';
 
 /**
@@ -76,72 +76,29 @@ export function registerService(name: string, service: unknown): void {
 }
 
 /**
- * Resolve dependencies for a directive based on its $inject array and using option.
+ * Create resolver config for server-side dependency resolution.
  *
  * @internal
  */
-function resolveDependencies(
-  directive: Directive,
-  expr: Expression,
-  el: Element,
-  ctx: Context,
-  rootState: Record<string, unknown>,
-  using?: ContextKey<unknown>[]
-): unknown[] {
-  const inject = directive.$inject ?? ['$expr', '$element', '$eval'];
+function createServerResolverConfig(el: Element, rootState: Record<string, unknown>) {
+  return {
+    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
+    resolveState: () => getLocalState(el) ?? rootState,
+    resolveRootState: () => rootState,
+    resolveCustom: (name: string) => {
+      // Look up in ancestor DI providers first (provide option)
+      const diProvided = resolveFromDIProviders(el, name);
+      if (diProvided !== undefined) return diProvided;
 
-  const args = inject.map(dep => {
-    // Handle ContextKey injection
-    if (isContextKey(dep)) {
-      return resolveContext(el, dep);
-    }
+      // Look up in global services registry
+      const service = services.get(name);
+      if (service !== undefined) return service;
 
-    // Handle string-based injection
-    switch (dep) {
-      case '$expr':
-        return expr;
-      case '$element':
-        return el;
-      case '$eval':
-        return ctx.eval.bind(ctx);
-      case '$state':
-        return getLocalState(el) ?? rootState;
-      case '$rootState':
-        return rootState;
-      case '$mode':
-        return Mode.SERVER;
-      default: {
-        // Look up in ancestor DI providers first (provide option)
-        const diProvided = resolveFromDIProviders(el, dep);
-        if (diProvided !== undefined) {
-          return diProvided;
-        }
-
-        // Look up in global services registry
-        const service = services.get(dep);
-        if (service !== undefined) {
-          return service;
-        }
-
-        // Look up in ancestor context providers ($context)
-        const contextProvided = resolveFromProviders(el, dep);
-        if (contextProvided !== undefined) {
-          return contextProvided;
-        }
-
-        throw new Error(`Unknown injectable: ${dep}`);
-      }
-    }
-  });
-
-  // Append contexts from `using` option
-  if (using?.length) {
-    for (const key of using) {
-      args.push(resolveContext(el, key));
-    }
-  }
-
-  return args;
+      // Look up in ancestor context providers ($context)
+      return resolveFromProviders(el, name);
+    },
+    mode: 'server' as const
+  };
 }
 
 /**
@@ -315,7 +272,8 @@ export async function render(
         if (item.isNativeSlot) {
           processNativeSlot(item.el as unknown as HTMLSlotElement);
         } else {
-          const args = resolveDependencies(item.directive!, item.expr, item.el, ctx, state, item.using);
+          const config = createServerResolverConfig(item.el, state);
+          const args = resolveInjectables(item.directive!, item.expr, item.el, ctx.eval.bind(ctx), config, item.using);
           await (item.directive as (...args: unknown[]) => void | Promise<void>)(...args);
 
           // Register as context provider if directive declares $context

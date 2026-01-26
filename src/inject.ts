@@ -13,6 +13,7 @@
  */
 
 import type { ContextKey } from './context-registry.js';
+import type { Expression, EvalFn } from './types.js';
 
 /**
  * An injectable dependency - either a string name or a typed context key.
@@ -84,4 +85,88 @@ function parseFunctionParams(fn: Function): string[] {
     .map(p => p.trim())
     .map(p => p.replace(/\s*=.*$/, ''))
     .filter(Boolean);
+}
+
+/**
+ * Configuration for dependency resolution.
+ */
+export interface DependencyResolverConfig {
+  /** Resolve a ContextKey to its value */
+  resolveContext: (key: ContextKey<unknown>) => unknown;
+  /** Resolve $state injectable */
+  resolveState: () => Record<string, unknown>;
+  /** Resolve $rootState injectable (may be same as state) */
+  resolveRootState?: () => Record<string, unknown>;
+  /** Resolve custom injectable by name (services, providers) */
+  resolveCustom?: (name: string) => unknown | undefined;
+  /** Current mode */
+  mode: 'server' | 'client';
+}
+
+/**
+ * Resolve dependencies for a directive function.
+ *
+ * @remarks
+ * Unified dependency resolution used by both client and server.
+ * Handles $inject arrays, ContextKey injection, and the `using` option.
+ *
+ * @param fn - The directive function (with optional $inject)
+ * @param expr - The expression string from the directive attribute
+ * @param element - The target DOM element
+ * @param evalFn - Function to evaluate expressions
+ * @param config - Resolution configuration
+ * @param using - Optional array of context keys to append
+ * @returns Array of resolved dependency values
+ */
+export function resolveDependencies(
+  fn: InjectableFunction,
+  expr: Expression | string,
+  element: Element,
+  evalFn: EvalFn,
+  config: DependencyResolverConfig,
+  using?: ContextKey<unknown>[]
+): unknown[] {
+  const inject = getInjectables(fn);
+
+  const args = inject.map(dep => {
+    // Handle ContextKey injection
+    if (isContextKey(dep)) {
+      return config.resolveContext(dep);
+    }
+
+    // Handle string-based injection
+    switch (dep) {
+      case '$expr':
+        return expr;
+      case '$element':
+        return element;
+      case '$eval':
+        return evalFn;
+      case '$state':
+        return config.resolveState();
+      case '$rootState':
+        return config.resolveRootState?.() ?? config.resolveState();
+      case '$mode':
+        return config.mode;
+      default: {
+        // Look up in custom resolver (services, providers, etc.)
+        if (config.resolveCustom) {
+          const resolved = config.resolveCustom(dep);
+          if (resolved !== undefined) {
+            return resolved;
+          }
+        }
+        throw new Error(`Unknown injectable: ${dep}`);
+      }
+    }
+  });
+
+  // Append contexts from `using` option
+  if (using?.length) {
+    for (const key of using) {
+      args.push(config.resolveContext(key));
+    }
+  }
+
+  return args;
 }

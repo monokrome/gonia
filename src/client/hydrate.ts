@@ -10,7 +10,7 @@ import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
 import { FOR_PROCESSED_ATTR } from '../directives/for.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
-import { getInjectables, isContextKey } from '../inject.js';
+import { resolveDependencies as resolveInjectables, isContextKey } from '../inject.js';
 import { resolveContext, ContextKey } from '../context-registry.js';
 
 // Built-in directives
@@ -175,74 +175,28 @@ export function setElementContext(el: Element, ctx: Context): void {
 }
 
 /**
- * Resolve dependencies for a directive based on its $inject array and using option.
+ * Create resolver config for client-side dependency resolution.
  *
  * @internal
  */
-function resolveDependencies(
-  directive: Directive,
-  expr: Expression,
-  el: Element,
-  ctx: Context,
-  using?: ContextKey<unknown>[]
-): unknown[] {
-  const inject = getInjectables(directive);
+function createClientResolverConfig(el: Element, ctx: Context) {
+  return {
+    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
+    resolveState: () => findParentScope(el, true) ?? getLocalState(el),
+    resolveCustom: (name: string) => {
+      // Look up in ancestor DI providers first (provide option)
+      const diProvided = resolveFromDIProviders(el, name);
+      if (diProvided !== undefined) return diProvided;
 
-  const args = inject.map(dep => {
-    // Handle ContextKey injection
-    if (isContextKey(dep)) {
-      return resolveContext(el, dep);
-    }
+      // Look up in global services registry
+      const service = services.get(name);
+      if (service !== undefined) return service;
 
-    // Handle string-based injection
-    const name = dep;
-    switch (name) {
-      case '$expr':
-        return expr;
-      case '$element':
-        return el;
-      case '$eval':
-        return ctx.eval.bind(ctx);
-      case '$state':
-        // Find nearest ancestor scope (including self)
-        return findParentScope(el, true) ?? getLocalState(el);
-      case '$rootState':
-        // Deprecated: same as $state now (scoped state)
-        return findParentScope(el, true) ?? getLocalState(el);
-      case '$mode':
-        return Mode.CLIENT;
-      default: {
-        // Look up in ancestor DI providers first (provide option)
-        const diProvided = resolveFromDIProviders(el, name);
-        if (diProvided !== undefined) {
-          return diProvided;
-        }
-
-        // Look up in global services registry
-        const service = services.get(name);
-        if (service !== undefined) {
-          return service;
-        }
-
-        // Look up in ancestor context providers ($context)
-        const contextProvided = resolveFromProviders(el, name);
-        if (contextProvided !== undefined) {
-          return contextProvided;
-        }
-
-        throw new Error(`Unknown injectable: ${name}`);
-      }
-    }
-  });
-
-  // Append contexts from `using` option
-  if (using?.length) {
-    for (const key of using) {
-      args.push(resolveContext(el, key));
-    }
-  }
-
-  return args;
+      // Look up in ancestor context providers ($context)
+      return resolveFromProviders(el, name);
+    },
+    mode: 'client' as const
+  };
 }
 
 /**
@@ -277,7 +231,8 @@ function processElement(
 
   for (const { directive, expr, using } of directives) {
     const processDirective = () => {
-      const args = resolveDependencies(directive, expr as Expression, el, ctx, using);
+      const config = createClientResolverConfig(el, ctx);
+      const args = resolveInjectables(directive, expr, el, ctx.eval.bind(ctx), config, using);
       const result = (directive as (...args: unknown[]) => void | Promise<void>)(...args);
 
       // Register as provider if directive declares $context
@@ -471,33 +426,13 @@ async function processDirectiveElements(): Promise<void> {
       if (fn) {
         const ctx = createContext(Mode.CLIENT, scope);
 
-        const inject = getInjectables(fn);
-        const args: unknown[] = inject.map((dep) => {
-          // Handle ContextKey injection
-          if (isContextKey(dep)) {
-            return resolveContext(el, dep);
-          }
+        const config = {
+          resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
+          resolveState: () => scope,
+          mode: 'client' as const
+        };
 
-          // Handle string-based injection
-          switch (dep) {
-            case '$element':
-              return el;
-            case '$state':
-              return scope;
-            case '$eval':
-              return ctx.eval.bind(ctx);
-            default:
-              return undefined;
-          }
-        });
-
-        // Append contexts from `using` option
-        if (options.using?.length) {
-          for (const key of options.using) {
-            args.push(resolveContext(el, key));
-          }
-        }
-
+        const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using);
         const result = fn(...args);
 
         if (result instanceof Promise) {
