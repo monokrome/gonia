@@ -10,6 +10,49 @@ import { findRoots } from './expression.js';
 export type { Context };
 
 /**
+ * Cached compiled expression.
+ */
+interface CompiledExpr {
+  fn: Function;
+  roots: string[];
+}
+
+/**
+ * LRU cache for compiled expressions.
+ * Map maintains insertion order; we delete and re-add on access to maintain LRU order.
+ */
+const exprCache = new Map<string, CompiledExpr>();
+const CACHE_MAX_SIZE = 500;
+
+/**
+ * Get or compile an expression.
+ */
+function getOrCompile(expr: string): CompiledExpr {
+  let cached = exprCache.get(expr);
+  if (cached) {
+    // Move to end (most recently used)
+    exprCache.delete(expr);
+    exprCache.set(expr, cached);
+    return cached;
+  }
+
+  const roots = findRoots(expr);
+  const fn = new Function(...roots, `return (${expr})`);
+  cached = { fn, roots };
+
+  // Evict oldest if at capacity
+  if (exprCache.size >= CACHE_MAX_SIZE) {
+    const oldest = exprCache.keys().next().value;
+    if (oldest !== undefined) {
+      exprCache.delete(oldest);
+    }
+  }
+
+  exprCache.set(expr, cached);
+  return cached;
+}
+
+/**
  * Create an evaluation context for directives.
  *
  * @remarks
@@ -44,14 +87,8 @@ export function createContext(
     mode,
 
     eval<T = unknown>(expr: Expression): T {
-      const roots = findRoots(expr);
-      const fn = new Function(...roots, `return (${expr})`);
-      const values = roots.map(r => {
-        if (r in scope) {
-          return scope[r];
-        }
-        return state[r];
-      });
+      const { fn, roots } = getOrCompile(expr);
+      const values = roots.map(r => r in scope ? scope[r] : state[r]);
       return fn(...values) as T;
     },
 
