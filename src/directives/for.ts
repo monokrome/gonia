@@ -5,8 +5,8 @@
  */
 
 import { directive, Directive, DirectivePriority, Expression, EvalFn, Mode } from '../types.js';
-import { effect, createEffectScope, createScope, EffectScope } from '../reactivity.js';
-import { createContext } from '../context.js';
+import { effect, createEffectScope, EffectScope } from '../reactivity.js';
+import { processElementTree } from '../process.js';
 
 /**
  * Parse a g-for expression.
@@ -44,93 +44,6 @@ export const FOR_PROCESSED_ATTR = 'data-g-for-processed';
 
 /** Attribute used to mark template content that should be skipped during SSR */
 export const FOR_TEMPLATE_ATTR = 'data-g-for-template';
-
-/**
- * Process directives on a cloned element within a child scope.
- */
-function processClonedElement(
-  el: Element,
-  parentState: Record<string, unknown>,
-  scopeAdditions: Record<string, unknown>,
-  mode: Mode
-): void {
-  // Mark this element as processed by g-for so hydrate skips it
-  el.setAttribute(FOR_PROCESSED_ATTR, '');
-
-  const childScope = createScope(parentState, scopeAdditions);
-  const childCtx = createContext(mode, childScope);
-
-  // Process g-text directives
-  const textAttr = el.getAttribute('g-text');
-  if (textAttr) {
-    const value = childCtx.eval(textAttr as Expression);
-    el.textContent = String(value ?? '');
-  }
-
-  // Process g-class directives
-  const classAttr = el.getAttribute('g-class');
-  if (classAttr) {
-    const classObj = childCtx.eval<Record<string, boolean>>(classAttr as Expression);
-    if (classObj && typeof classObj === 'object') {
-      for (const [className, shouldAdd] of Object.entries(classObj)) {
-        if (shouldAdd) {
-          el.classList.add(className);
-        } else {
-          el.classList.remove(className);
-        }
-      }
-    }
-  }
-
-  // Process g-show directives
-  const showAttr = el.getAttribute('g-show');
-  if (showAttr) {
-    const value = childCtx.eval(showAttr as Expression);
-    (el as HTMLElement).style.display = value ? '' : 'none';
-  }
-
-  // Process g-on directives (format: "event: handler") - client only
-  if (mode === Mode.CLIENT) {
-    const onAttr = el.getAttribute('g-on');
-    if (onAttr) {
-      setupEventHandler(el, onAttr, childCtx, childScope);
-    }
-  }
-
-  // Process children recursively
-  for (const child of el.children) {
-    processClonedElement(child, childScope, {}, mode);
-  }
-}
-
-/**
- * Set up an event handler on an element.
- * Expression format: "event: handler"
- */
-function setupEventHandler(
-  el: Element,
-  expr: string,
-  ctx: { eval: EvalFn },
-  state: Record<string, unknown>
-): void {
-  const colonIdx = expr.indexOf(':');
-  if (colonIdx === -1) {
-    console.error(`Invalid g-on expression: ${expr}. Expected "event: handler"`);
-    return;
-  }
-
-  const eventName = expr.slice(0, colonIdx).trim();
-  const handlerExpr = expr.slice(colonIdx + 1).trim();
-
-  const handler = (event: Event) => {
-    const result = ctx.eval(handlerExpr as Expression);
-    if (typeof result === 'function') {
-      result.call(state, event);
-    }
-  };
-
-  el.addEventListener(eventName, handler);
-}
 
 /**
  * Render loop items (used by both server and client).
@@ -185,7 +98,11 @@ function renderItems(
       scopeAdditions[indexName] = key;
     }
 
-    processClonedElement(clone, $state, scopeAdditions, mode);
+    // Mark as processed
+    clone.setAttribute(FOR_PROCESSED_ATTR, '');
+
+    // Process with shared utility
+    processElementTree(clone, $state, mode, { scopeAdditions });
 
     if (insertAfter.nextSibling) {
       parent.insertBefore(clone, insertAfter.nextSibling);
