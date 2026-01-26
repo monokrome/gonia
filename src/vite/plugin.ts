@@ -16,6 +16,15 @@ import { glob } from 'tinyglobby';
 import { resolve, relative } from 'path';
 
 /**
+ * Options for directive registration.
+ */
+export interface DirectiveOptionsConfig {
+  scope?: boolean;
+  template?: string | ((attrs: Record<string, string>) => string | Promise<string>);
+  provide?: Record<string, unknown>;
+}
+
+/**
  * Plugin options.
  */
 export interface GoniaPluginOptions {
@@ -58,6 +67,26 @@ export interface GoniaPluginOptions {
    * @example ['app-', 'my-', 'ui-']
    */
   directiveElementPrefixes?: string[];
+
+  /**
+   * Options to apply to directives.
+   *
+   * Can be an object mapping directive names to options, or a function
+   * that receives the directive name and returns options.
+   *
+   * @example
+   * ```ts
+   * // Object form - explicit per-directive
+   * directiveOptions: {
+   *   'g-text': { scope: true },
+   *   'app-card': { template: '<div class="card"><slot></slot></div>' }
+   * }
+   *
+   * // Function form - dynamic/pattern-based
+   * directiveOptions: (name) => name.startsWith('app-') ? { scope: true } : undefined
+   * ```
+   */
+  directiveOptions?: Record<string, DirectiveOptionsConfig> | ((name: string) => DirectiveOptionsConfig | undefined);
 }
 
 /**
@@ -197,20 +226,72 @@ function detectDirectives(
 }
 
 /**
+ * Get options for a directive from the directiveOptions config.
+ */
+function getDirectiveOptions(
+  name: string,
+  directiveOptions: GoniaPluginOptions['directiveOptions']
+): DirectiveOptionsConfig | undefined {
+  if (!directiveOptions) return undefined;
+
+  if (typeof directiveOptions === 'function') {
+    return directiveOptions(name);
+  }
+
+  return directiveOptions[name];
+}
+
+/**
+ * Serialize directive options to a string for code generation.
+ */
+function serializeOptions(options: DirectiveOptionsConfig): string {
+  const parts: string[] = [];
+
+  if (options.scope !== undefined) {
+    parts.push(`scope: ${options.scope}`);
+  }
+
+  if (options.template !== undefined) {
+    if (typeof options.template === 'string') {
+      parts.push(`template: ${JSON.stringify(options.template)}`);
+    } else {
+      // Function templates can't be serialized - warn and skip
+      console.warn('[gonia] Function templates in directiveOptions are not supported. Use a string template.');
+    }
+  }
+
+  if (options.provide !== undefined) {
+    // provide can contain functions which can't be serialized
+    console.warn('[gonia] "provide" in directiveOptions is not supported via plugin config.');
+  }
+
+  return `{ ${parts.join(', ')} }`;
+}
+
+/**
  * Generate import statements for detected directives.
  */
 function generateImports(
   directives: Set<string>,
   customDirectives: Map<string, DirectiveInfo>,
   currentFile: string,
-  rootDir: string
+  rootDir: string,
+  directiveOptions: GoniaPluginOptions['directiveOptions']
 ): string {
   if (directives.size === 0) return '';
 
   // Group by module
   const moduleImports = new Map<string, string[]>();
+  // Track which directives need configuration
+  const directivesToConfigure: Array<{ name: string; options: DirectiveOptionsConfig }> = [];
 
   for (const name of directives) {
+    // Check if this directive has options
+    const options = getDirectiveOptions(name, directiveOptions);
+    if (options) {
+      directivesToConfigure.push({ name, options });
+    }
+
     // Check built-in first
     const builtin = BUILTIN_DIRECTIVES[name];
     if (builtin) {
@@ -246,6 +327,15 @@ function generateImports(
   // Generate import statements
   const statements: string[] = [];
 
+  // Add configureDirective import if we have options to apply
+  if (directivesToConfigure.length > 0) {
+    const goniaImports = moduleImports.get('gonia') ?? [];
+    if (!goniaImports.includes('configureDirective')) {
+      goniaImports.push('configureDirective');
+    }
+    moduleImports.set('gonia', goniaImports);
+  }
+
   for (const [module, imports] of moduleImports) {
     if (imports.length > 0) {
       statements.push(`import { ${imports.join(', ')} } from '${module}';`);
@@ -253,6 +343,11 @@ function generateImports(
       // Side-effect import for custom directives
       statements.push(`import '${module}';`);
     }
+  }
+
+  // Add configureDirective calls
+  for (const { name, options } of directivesToConfigure) {
+    statements.push(`configureDirective('${name}', ${serializeOptions(options)});`);
   }
 
   return statements.length > 0 ? statements.join('\n') + '\n' : '';
@@ -357,6 +452,7 @@ export function gonia(options: GoniaPluginOptions = {}): Plugin {
     directiveSources = [],
     directiveAttributePrefixes = ['g-'],
     directiveElementPrefixes = options.directiveElementPrefixes ?? options.directiveAttributePrefixes ?? ['g-'],
+    directiveOptions,
   } = options;
 
   let isDev = false;
@@ -442,7 +538,7 @@ export function gonia(options: GoniaPluginOptions = {}): Plugin {
                                   code.includes('from "gonia/directives"');
 
           // For custom directives, check if already imported
-          const importStatement = generateImports(detected, customDirectives, id, rootDir);
+          const importStatement = generateImports(detected, customDirectives, id, rootDir, directiveOptions);
 
           if (importStatement && !hasGoniaImport) {
             result = importStatement + result;

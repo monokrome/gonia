@@ -330,6 +330,77 @@ describe('gonia vite plugin', () => {
     });
   });
 
+  describe('directiveOptions', () => {
+    it('should generate configureDirective call for object form', () => {
+      const code = 'const html = `<div g-text="msg"></div>`;';
+      const result = transform(code, 'test.ts', {
+        directiveOptions: {
+          'g-text': { scope: true }
+        }
+      });
+
+      expect(result).toContain("import { text } from 'gonia/directives'");
+      expect(result).toContain("import { configureDirective } from 'gonia'");
+      expect(result).toContain("configureDirective('g-text', { scope: true })");
+    });
+
+    it('should generate configureDirective call for function form', () => {
+      const code = 'const html = `<div g-text="msg"></div>`;';
+      const result = transform(code, 'test.ts', {
+        directiveOptions: (name) => name === 'g-text' ? { scope: true } : undefined
+      });
+
+      expect(result).toContain("configureDirective('g-text', { scope: true })");
+    });
+
+    it('should serialize template strings', () => {
+      const code = 'const html = `<div g-text="msg"></div>`;';
+      const result = transform(code, 'test.ts', {
+        directiveOptions: {
+          'g-text': { template: '<span><slot></slot></span>' }
+        }
+      });
+
+      expect(result).toContain('template: "<span><slot></slot></span>"');
+    });
+
+    it('should handle multiple directives with options', () => {
+      const code = 'const html = `<div g-text="msg" g-show="visible"></div>`;';
+      const result = transform(code, 'test.ts', {
+        directiveOptions: {
+          'g-text': { scope: true },
+          'g-show': { scope: true }
+        }
+      });
+
+      expect(result).toContain("configureDirective('g-text', { scope: true })");
+      expect(result).toContain("configureDirective('g-show', { scope: true })");
+    });
+
+    it('should only configure directives that have options', () => {
+      const code = 'const html = `<div g-text="msg" g-show="visible"></div>`;';
+      const result = transform(code, 'test.ts', {
+        directiveOptions: {
+          'g-text': { scope: true }
+          // g-show has no options
+        }
+      });
+
+      expect(result).toContain("configureDirective('g-text'");
+      expect(result).not.toContain("configureDirective('g-show'");
+    });
+
+    it('should work with function returning undefined', () => {
+      const code = 'const html = `<div g-text="msg" g-show="visible"></div>`;';
+      const result = transform(code, 'test.ts', {
+        directiveOptions: (name) => name.startsWith('g-t') ? { scope: true } : undefined
+      });
+
+      expect(result).toContain("configureDirective('g-text'");
+      expect(result).not.toContain("configureDirective('g-show'");
+    });
+  });
+
   describe('plugin metadata', () => {
     it('should have correct name', () => {
       const plugin = gonia();

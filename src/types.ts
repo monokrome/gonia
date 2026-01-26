@@ -416,3 +416,44 @@ export function getDirectiveNames(): string[] {
 export function clearDirectives(): void {
   directiveRegistry.clear();
 }
+
+/**
+ * Configure options for an existing directive.
+ *
+ * @remarks
+ * Merges the provided options with any existing options for the directive.
+ * If the directive hasn't been registered yet, stores the options to be
+ * applied when it is registered.
+ *
+ * This is useful for configuring built-in or third-party directives
+ * without needing access to the directive function.
+ *
+ * @param name - The directive name
+ * @param options - Options to merge
+ *
+ * @example
+ * ```ts
+ * // Add scope to a built-in directive
+ * configureDirective('g-text', { scope: true });
+ *
+ * // Add template to a custom element
+ * configureDirective('app-header', {
+ *   template: '<header><slot></slot></header>'
+ * });
+ * ```
+ */
+export function configureDirective(name: string, options: Partial<DirectiveOptions>): void {
+  const existing = directiveRegistry.get(name);
+  if (existing) {
+    directiveRegistry.set(name, {
+      fn: existing.fn,
+      options: { ...existing.options, ...options }
+    });
+  } else {
+    // Store options for later - directive will be registered soon
+    directiveRegistry.set(name, {
+      fn: null,
+      options: options as DirectiveOptions
+    });
+  }
+}

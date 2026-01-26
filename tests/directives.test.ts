@@ -4,7 +4,7 @@ import { text } from '../src/directives/text.js';
 import { html } from '../src/directives/html.js';
 import { show } from '../src/directives/show.js';
 import { createContext } from '../src/context.js';
-import { Mode, Expression, EvalFn } from '../src/types.js';
+import { Mode, Expression, EvalFn, directive, getDirective, clearDirectives, configureDirective } from '../src/types.js';
 
 describe('text directive', () => {
   let document: Document;
@@ -207,5 +207,64 @@ describe('show directive', () => {
     show('count > threshold' as Expression, el, $eval);
 
     expect(el.style.display).toBe('');
+  });
+});
+
+describe('configureDirective', () => {
+  beforeEach(() => {
+    clearDirectives();
+  });
+
+  it('should merge options with existing directive', () => {
+    const fn = () => {};
+    directive('test-directive', fn, { scope: false });
+
+    configureDirective('test-directive', { scope: true });
+
+    const reg = getDirective('test-directive');
+    expect(reg?.options.scope).toBe(true);
+    expect(reg?.fn).toBe(fn);
+  });
+
+  it('should preserve existing options when adding new ones', () => {
+    const fn = () => {};
+    directive('test-directive', fn, { scope: true });
+
+    configureDirective('test-directive', { template: '<div></div>' });
+
+    const reg = getDirective('test-directive');
+    expect(reg?.options.scope).toBe(true);
+    expect(reg?.options.template).toBe('<div></div>');
+  });
+
+  it('should store options for not-yet-registered directive', () => {
+    configureDirective('future-directive', { scope: true });
+
+    const reg = getDirective('future-directive');
+    expect(reg?.options.scope).toBe(true);
+    expect(reg?.fn).toBeNull();
+  });
+
+  it('should preserve function when configuring', () => {
+    const fn = () => {};
+    directive('my-directive', fn);
+
+    configureDirective('my-directive', { scope: true, template: '<span></span>' });
+
+    const reg = getDirective('my-directive');
+    expect(reg?.fn).toBe(fn);
+    expect(reg?.options.scope).toBe(true);
+    expect(reg?.options.template).toBe('<span></span>');
+  });
+
+  it('should override individual options', () => {
+    const fn = () => {};
+    directive('test-directive', fn, { scope: true, template: '<old></old>' });
+
+    configureDirective('test-directive', { template: '<new></new>' });
+
+    const reg = getDirective('test-directive');
+    expect(reg?.options.scope).toBe(true);
+    expect(reg?.options.template).toBe('<new></new>');
   });
 });

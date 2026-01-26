@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-export { Mode, Expression, Context, Directive, directive, getDirective, getDirectiveNames, clearDirectives } from './types.js';
+export { Mode, Expression, Context, Directive, directive, getDirective, getDirectiveNames, clearDirectives, configureDirective } from './types.js';
 export type { DirectiveMeta } from './types.js';
 export { createContext, createChildContext } from './context.js';
 export { reactive, effect, createScope, createEffectScope } from './reactivity.js';
