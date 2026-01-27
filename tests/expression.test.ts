@@ -104,6 +104,31 @@ describe('findRoots', () => {
     expect(roots).toContain('a');
     expect(roots).toContain('b');
   });
+
+  it('should handle $-prefixed identifiers', () => {
+    expect(findRoots('$styles')).toEqual(['$styles']);
+    expect(findRoots('$scope.value')).toEqual(['$scope']);
+    expect(findRoots('$index + 1')).toEqual(['$index']);
+  });
+
+  it('should handle multiple $-prefixed identifiers', () => {
+    const roots = findRoots('$a + $b.prop');
+    expect(roots).toContain('$a');
+    expect(roots).toContain('$b');
+    expect(roots).toHaveLength(2);
+  });
+
+  it('should handle mixed regular and $-prefixed identifiers', () => {
+    const roots = findRoots('user.name + $styles.card');
+    expect(roots).toContain('user');
+    expect(roots).toContain('$styles');
+    expect(roots).toHaveLength(2);
+  });
+
+  it('should exclude $-prefixed property accesses', () => {
+    const roots = findRoots('obj.$weird');
+    expect(roots).toEqual(['obj']);
+  });
 });
 
 describe('parseInterpolation', () => {
