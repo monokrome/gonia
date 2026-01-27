@@ -532,7 +532,9 @@ export function gonia(options: GoniaPluginOptions = {}): Plugin {
         }
 
         // Generate imports if we found directives and haven't already
-        if (detected.size > 0 && !injectedModules.has(id)) {
+        // Skip HTML files - they're scanned for detection but imports go in JS
+        const isHtmlFile = /\.html$/.test(id);
+        if (detected.size > 0 && !injectedModules.has(id) && !isHtmlFile) {
           // Check if this file already imports from gonia/directives
           const hasGoniaImport = code.includes("from 'gonia/directives'") ||
                                   code.includes('from "gonia/directives"');

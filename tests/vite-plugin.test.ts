@@ -268,11 +268,12 @@ describe('gonia vite plugin', () => {
       expect(result).toContain('text');
     });
 
-    it('should process .html files', () => {
+    it('should not inject imports into .html files', () => {
       const code = '<div g-text="msg"></div>';
       const result = transform(code, 'index.html');
 
-      expect(result).toContain('text');
+      // HTML files should not have JS imports injected
+      expect(result).toBeNull();
     });
 
     it('should skip node_modules', () => {
