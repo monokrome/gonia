@@ -16,9 +16,10 @@ import type { ContextKey } from './context-registry.js';
 import type { Expression, EvalFn } from './types.js';
 
 /**
- * An injectable dependency - either a string name or a typed context key.
+ * An injectable dependency name.
+ * For ContextKey injection, use the `using` option on directive registration.
  */
-export type Injectable = string | ContextKey<unknown>;
+export type Injectable = string;
 
 /**
  * Check if a value is a ContextKey.
@@ -31,7 +32,7 @@ export function isContextKey(value: unknown): value is ContextKey<unknown> {
  * A function with optional `$inject` annotation.
  */
 interface InjectableFunction extends Function {
-  $inject?: readonly Injectable[];
+  $inject?: readonly string[];
 }
 
 /**
@@ -50,10 +51,12 @@ interface InjectableFunction extends Function {
  * const myDirective = (expr, ctx, el, http, userService) => {};
  * getInjectables(myDirective); // ['expr', 'ctx', 'el', 'http', 'userService']
  *
- * // Production - explicit annotation with context keys
- * myDirective.$inject = ['$element', SlotContentContext];
- * getInjectables(myDirective); // ['$element', SlotContentContext]
+ * // Production - explicit $inject array (survives minification)
+ * myDirective.$inject = ['$element', '$scope'];
+ * getInjectables(myDirective); // ['$element', '$scope']
  * ```
+ *
+ * For ContextKey injection, use the `using` option on directive registration.
  */
 export function getInjectables(fn: InjectableFunction): Injectable[] {
   if ('$inject' in fn && Array.isArray(fn.$inject)) {
@@ -128,13 +131,7 @@ export function resolveDependencies(
 ): unknown[] {
   const inject = getInjectables(fn);
 
-  const args = inject.map(dep => {
-    // Handle ContextKey injection
-    if (isContextKey(dep)) {
-      return config.resolveContext(dep);
-    }
-
-    // Handle string-based injection
+  const args: unknown[] = inject.map(dep => {
     switch (dep) {
       case '$expr':
         return expr;

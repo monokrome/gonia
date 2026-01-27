@@ -178,14 +178,15 @@ export interface DirectiveMeta<T = InjectableRegistry> {
    *
    * @example
    * ```ts
-   * // String-based injection
    * myDirective.$inject = ['$element', '$scope'];
+   * ```
    *
-   * // With typed context keys
-   * myDirective.$inject = ['$element', SlotContentContext];
+   * For typed context keys, use the `using` option on directive registration:
+   * ```ts
+   * directive('my-directive', myDirective, { using: [SlotContentContext] });
    * ```
    */
-  $inject?: readonly Injectable[];
+  $inject?: readonly string[];
 
   /**
    * Names this directive exposes as context to descendants.

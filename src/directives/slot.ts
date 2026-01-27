@@ -81,9 +81,9 @@ export const slot: Directive<['$expr', '$element', '$eval', typeof SlotContentCo
     transclude();
   }
 };
-slot.$inject = ['$expr', '$element', '$eval', SlotContentContext];
+slot.$inject = ['$expr', '$element', '$eval'];
 
-directive('g-slot', slot);
+directive('g-slot', slot, { using: [SlotContentContext] });
 
 /**
  * Process native <slot> elements.

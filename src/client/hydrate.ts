@@ -10,7 +10,7 @@ import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
 import { FOR_PROCESSED_ATTR } from '../directives/for.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
-import { resolveDependencies as resolveInjectables, isContextKey } from '../inject.js';
+import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { resolveContext, ContextKey } from '../context-registry.js';
 import { effect } from '../reactivity.js';
 
