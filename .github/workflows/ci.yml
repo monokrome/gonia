@@ -27,3 +27,12 @@ jobs:
       - run: pnpm build
 
       - run: pnpm test
+
+      - name: Check changelog is up to date
+        run: |
+          pnpm run changelog
+          if [ -n "$(git diff --name-only CHANGELOG.md)" ]; then
+            echo "::error::CHANGELOG.md is out of date. Run 'npm run changelog' and commit the changes."
+            git diff CHANGELOG.md
+            exit 1
+          fi
