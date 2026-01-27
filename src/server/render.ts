@@ -8,7 +8,8 @@ import { Window } from 'happy-dom';
 import { Mode, Directive, Expression, DirectivePriority, Context, getDirective } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
-import { getLocalState, registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
+import { registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
+import { createElementScope, getElementScope } from '../scope.js';
 import { FOR_PROCESSED_ATTR, FOR_TEMPLATE_ATTR } from '../directives/for.js';
 import { IF_PROCESSED_ATTR } from '../directives/if.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
@@ -107,14 +108,38 @@ export function registerService(name: string, service: unknown): void {
 }
 
 /**
+ * Find the nearest scope by walking up the DOM tree.
+ * Falls back to rootState if no element scope found.
+ *
+ * @internal
+ */
+function findServerScope(el: Element, rootState: Record<string, unknown>): Record<string, unknown> {
+  let current: Element | null = el;
+
+  while (current) {
+    const scope = getElementScope(current);
+    if (scope) {
+      return scope;
+    }
+    current = current.parentElement;
+  }
+
+  return rootState;
+}
+
+/**
  * Create resolver config for server-side dependency resolution.
  *
  * @internal
  */
-function createServerResolverConfig(el: Element, rootState: Record<string, unknown>) {
+function createServerResolverConfig(
+  el: Element,
+  scopeState: Record<string, unknown>,
+  rootState: Record<string, unknown>
+) {
   return {
     resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
-    resolveState: () => getLocalState(el) ?? rootState,
+    resolveState: () => scopeState,
     resolveRootState: () => rootState,
     resolveCustom: (name: string) => {
       // Look up in ancestor DI providers first (provide option)
@@ -354,14 +379,25 @@ export async function render(
           // Placeholder for g-scope - already processed above
           continue;
         } else {
-          const config = createServerResolverConfig(item.el, state);
+          // Determine scope for this directive
+          let scopeState: Record<string, unknown>;
+
+          if (item.directive!.$context?.length) {
+            // Directives with $context get their own scope to populate
+            const parentScope = findServerScope(item.el, state);
+            scopeState = createElementScope(item.el, parentScope);
+          } else {
+            // Other directives use nearest ancestor scope or root
+            scopeState = findServerScope(item.el, state);
+          }
+
+          const config = createServerResolverConfig(item.el, scopeState, state);
           const args = resolveInjectables(item.directive!, item.expr, item.el, ctx.eval.bind(ctx), config, item.using);
           await (item.directive as (...args: unknown[]) => void | Promise<void>)(...args);
 
           // Register as context provider if directive declares $context
           if (item.directive!.$context?.length) {
-            const localState = getLocalState(item.el);
-            registerProvider(item.el, item.directive!, localState);
+            registerProvider(item.el, item.directive!, scopeState);
           }
         }
       }
