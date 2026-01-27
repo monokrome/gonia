@@ -1,3 +1,13 @@
+## [0.2.1](https://github.com/monokrome/gonia/compare/v0.2.0...v0.2.1) (2026-01-27)
+
+
+### Bug Fixes
+
+* replace linkedom with happy-dom to fix canvas bundling issue ([9576a3e](https://github.com/monokrome/gonia/commit/9576a3e))
+* export registerService from gonia/server barrel
+
+
+
 # [0.2.0](https://github.com/monokrome/gonia/compare/v0.1.3...v0.2.0) (2026-01-27)
 
 
