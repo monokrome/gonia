@@ -1,3 +1,14 @@
+# [0.2.0](https://github.com/monokrome/gonia/compare/v0.1.3...v0.2.0) (2026-01-27)
+
+
+### Features
+
+* add g-scope, g-bind:*, assign option, and use linkedom/worker ([da06750](https://github.com/monokrome/gonia/commit/da067505cafc59b528f0873e565a1dd8c0950b2a))
+* add persistent scopes for g-if and shared processing utility ([3de16da](https://github.com/monokrome/gonia/commit/3de16da3c1d558618471a9d7ead4685c2165e5bf))
+* use template placeholders for g-if SSR hydration ([1009708](https://github.com/monokrome/gonia/commit/10097086c9875a4a1eaa69160df452cabd71e736))
+
+
+
 ## [0.1.3](https://github.com/monokrome/gonia/compare/v0.1.2...v0.1.3) (2026-01-26)
 
 
