@@ -143,13 +143,49 @@ The expression after the colon is evaluated when the event fires. If it evaluate
 
 ```typescript
 // In your directive
-$state.handleClick = (event: Event) => {
+$scope.handleClick = (event: Event) => {
   console.log('Clicked!', event);
 };
 
-$state.increment = () => {
-  $state.count++;
+$scope.increment = () => {
+  $scope.count++;
 };
+```
+
+## Scope Directive
+
+### g-scope
+
+Initializes scope values inline on any element.
+
+```html
+<div g-scope="{ count: 0, message: 'Hello' }">
+  <span g-text="message"></span>
+  <span g-text="count"></span>
+</div>
+```
+
+The expression is evaluated and merged into the current scope. Useful for initializing local state without creating a custom directive.
+
+## Attribute Binding
+
+### g-bind:*
+
+Dynamically binds an expression to any HTML attribute.
+
+```html
+<a g-bind:href="linkUrl">Click here</a>
+<img g-bind:src="imageUrl" g-bind:alt="imageAlt">
+<input g-bind:disabled="isDisabled">
+<div g-bind:data-id="item.id">...</div>
+```
+
+When the expression is `null` or `undefined`, the attribute is removed. Otherwise, the value is converted to a string.
+
+**Dynamic classes and styles:**
+```html
+<div g-bind:class="dynamicClass">...</div>
+<div g-bind:style="'color: ' + textColor">...</div>
 ```
 
 ## Creating Custom Directives
@@ -197,13 +233,13 @@ Directives can inject various dependencies:
 | `$expr` | The directive's attribute value |
 | `$element` | The DOM element |
 | `$eval` | Function to evaluate expressions |
-| `$state` | Local reactive state object |
+| `$scope` | Local reactive state object |
 | `$mode` | Current mode (SERVER or CLIENT) |
 
 ```typescript
-const myDirective: Directive = ($expr, $element, $eval, $state, $mode) => {
+const myDirective: Directive = ($expr, $element, $eval, $scope, $mode) => {
   // Use injected dependencies
 };
 
-myDirective.$inject = ['$expr', '$element', '$eval', '$state', '$mode'];
+myDirective.$inject = ['$expr', '$element', '$eval', '$scope', '$mode'];
 ```

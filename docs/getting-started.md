@@ -51,12 +51,12 @@ my-app/
 // src/directives/app.ts
 import { directive, Directive } from 'gonia';
 
-const app: Directive = ($element, $state) => {
-  $state.title = 'Welcome';
-  $state.message = 'Hello from Gonia!';
+const app: Directive = ($element, $scope) => {
+  $scope.title = 'Welcome';
+  $scope.message = 'Hello from Gonia!';
 };
 
-app.$inject = ['$element', '$state'];
+app.$inject = ['$element', '$scope'];
 
 directive('my-app', app, { scope: true });
 ```
