@@ -8,26 +8,6 @@
 
 
 
-## [0.2.3](https://github.com/monokrome/gonia/compare/v0.2.2...v0.2.3) (2026-01-27)
-
-
-### Bug Fixes
-
-* $inject arrays must contain only strings ([4e1c85f](https://github.com/monokrome/gonia/commit/4e1c85fb94c3dc980d9a95745d579379908399cd))
-* use proper scope hierarchy in SSR ([b512175](https://github.com/monokrome/gonia/commit/b512175041ff835cc63cc89806009ab19d0cee9b))
-
-
-
-## [0.2.3](https://github.com/monokrome/gonia/compare/v0.2.2...v0.2.3) (2026-01-27)
-
-
-### Bug Fixes
-
-* $inject arrays must contain only strings ([4e1c85f](https://github.com/monokrome/gonia/commit/4e1c85fb94c3dc980d9a95745d579379908399cd))
-* use proper scope hierarchy in SSR ([b512175](https://github.com/monokrome/gonia/commit/b512175041ff835cc63cc89806009ab19d0cee9b))
-
-
-
 ## [0.2.2](https://github.com/monokrome/gonia/compare/v0.2.1...v0.2.2) (2026-01-27)
 
 
