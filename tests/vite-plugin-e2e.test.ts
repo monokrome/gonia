@@ -227,6 +227,123 @@ directive('my-widget', myWidget, { scope: true });
     });
   });
 
+  describe('library directive discovery', () => {
+    const MOCK_MODULES = join(process.cwd(), 'node_modules', 'mock-gonia-lib');
+
+    beforeAll(() => {
+      // Create mock library with gonia directives
+      mkdirSync(join(MOCK_MODULES, 'dist'), { recursive: true });
+
+      // Write package.json with gonia field
+      writeFileSync(
+        join(MOCK_MODULES, 'package.json'),
+        JSON.stringify({
+          name: 'mock-gonia-lib',
+          version: '1.0.0',
+          gonia: {
+            directives: {
+              'lib-button': './dist/button.js',
+              'lib-modal': './dist/modal.js'
+            }
+          }
+        }, null, 2)
+      );
+
+      // Write directive files
+      writeFileSync(
+        join(MOCK_MODULES, 'dist', 'button.js'),
+        'export default function libButton() {}'
+      );
+      writeFileSync(
+        join(MOCK_MODULES, 'dist', 'modal.js'),
+        'export default function libModal() {}'
+      );
+
+      // Ensure main package.json has this as a dependency
+      const mainPkgPath = join(process.cwd(), 'package.json');
+      const mainPkg = JSON.parse(require('fs').readFileSync(mainPkgPath, 'utf-8'));
+      mainPkg._originalDeps = { ...mainPkg.dependencies };
+      mainPkg.dependencies = {
+        ...mainPkg.dependencies,
+        'mock-gonia-lib': '1.0.0'
+      };
+      writeFileSync(mainPkgPath, JSON.stringify(mainPkg, null, 2) + '\n');
+    });
+
+    afterAll(() => {
+      // Restore main package.json
+      const mainPkgPath = join(process.cwd(), 'package.json');
+      const mainPkg = JSON.parse(require('fs').readFileSync(mainPkgPath, 'utf-8'));
+      mainPkg.dependencies = mainPkg._originalDeps;
+      delete mainPkg._originalDeps;
+      writeFileSync(mainPkgPath, JSON.stringify(mainPkg, null, 2) + '\n');
+
+      // Clean up mock module
+      rmSync(MOCK_MODULES, { recursive: true, force: true });
+    });
+
+    it('should discover directives from library package.json', async () => {
+      const plugin = await createPlugin({
+        directiveElementPrefixes: ['lib-']
+      });
+
+      const code = 'const html = `<lib-button>Click</lib-button>`;';
+      const result = transform(plugin, code);
+
+      expect(result).toContain('mock-gonia-lib/dist/button.js');
+    });
+
+    it('should discover multiple directives from same library', async () => {
+      const plugin = await createPlugin({
+        directiveElementPrefixes: ['lib-']
+      });
+
+      const code = 'const html = `<lib-button>OK</lib-button><lib-modal></lib-modal>`;';
+      const result = transform(plugin, code);
+
+      expect(result).toContain('mock-gonia-lib/dist/button.js');
+      expect(result).toContain('mock-gonia-lib/dist/modal.js');
+    });
+
+    it('should allow local directives to override library directives', async () => {
+      // Create a local directive with same name
+      writeFileSync(
+        join(TEST_DIR, 'lib-button-override.ts'),
+        `
+import { directive } from 'gonia';
+directive('lib-button', () => {});
+`
+      );
+
+      const plugin = await createPlugin({
+        directiveElementPrefixes: ['lib-'],
+        directiveSources: ['.test-directives/**/*.ts']
+      });
+
+      const code = 'const html = `<lib-button>Click</lib-button>`;';
+      const result = transform(plugin, code);
+
+      // Should use local version, not library
+      expect(result).toContain('lib-button-override.js');
+      expect(result).not.toContain('mock-gonia-lib');
+
+      // Clean up
+      rmSync(join(TEST_DIR, 'lib-button-override.ts'));
+    });
+
+    it('should combine library and built-in directives', async () => {
+      const plugin = await createPlugin({
+        directiveElementPrefixes: ['lib-']
+      });
+
+      const code = 'const html = `<lib-button g-text="label">Click</lib-button>`;';
+      const result = transform(plugin, code);
+
+      expect(result).toContain("import { text } from 'gonia/directives'");
+      expect(result).toContain('mock-gonia-lib/dist/button.js');
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle empty directive sources', async () => {
       const plugin = await createPlugin({

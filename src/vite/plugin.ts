@@ -13,7 +13,7 @@
 import type { Plugin } from 'vite';
 import { readFileSync } from 'fs';
 import { glob } from 'tinyglobby';
-import { resolve, relative } from 'path';
+import { resolve, relative, join } from 'path';
 
 /**
  * Options for directive registration.
@@ -87,6 +87,63 @@ export interface GoniaPluginOptions {
    * ```
    */
   directiveOptions?: Record<string, DirectiveOptionsConfig> | ((name: string) => DirectiveOptionsConfig | undefined);
+}
+
+/**
+ * Gonia package.json field structure for libraries.
+ */
+interface GoniaPackageConfig {
+  directives?: Record<string, string>;
+}
+
+/**
+ * Scan dependencies for packages that export gonia directives.
+ * Looks for `gonia` field in each dependency's package.json.
+ */
+function discoverLibraryDirectives(rootDir: string): Map<string, DirectiveInfo> {
+  const directives = new Map<string, DirectiveInfo>();
+
+  try {
+    const pkgPath = join(rootDir, 'package.json');
+    const pkgContent = readFileSync(pkgPath, 'utf-8');
+    const pkg = JSON.parse(pkgContent);
+
+    const allDeps = {
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+    };
+
+    for (const depName of Object.keys(allDeps)) {
+      try {
+        // Find the dependency's package.json
+        const depPkgPath = join(rootDir, 'node_modules', depName, 'package.json');
+        const depPkgContent = readFileSync(depPkgPath, 'utf-8');
+        const depPkg = JSON.parse(depPkgContent);
+
+        const goniaConfig: GoniaPackageConfig | undefined = depPkg.gonia;
+        if (!goniaConfig?.directives) continue;
+
+        // Register each directive from this package
+        for (const [directiveName, relativePath] of Object.entries(goniaConfig.directives)) {
+          // Resolve the module path
+          const modulePath = `${depName}/${relativePath.replace(/^\.\//, '')}`;
+
+          directives.set(directiveName, {
+            name: directiveName,
+            exportName: null, // Will be imported as default or named based on convention
+            module: modulePath,
+            isBuiltin: false,
+          });
+        }
+      } catch {
+        // Dependency doesn't have gonia config or couldn't be read - skip
+      }
+    }
+  } catch {
+    // Could not read root package.json - skip library discovery
+  }
+
+  return directives;
 }
 
 /**
@@ -502,22 +559,34 @@ export function gonia(options: GoniaPluginOptions = {}): Plugin {
     },
 
     async buildStart() {
-      // Scan directive sources to discover custom directives
+      // First, discover directives from installed libraries (lowest priority)
+      const libraryDirectives = discoverLibraryDirectives(rootDir);
+      for (const [name, info] of libraryDirectives) {
+        customDirectives.set(name, info);
+      }
+
+      if (isDev && libraryDirectives.size > 0) {
+        console.log(`[gonia] Discovered ${libraryDirectives.size} directive(s) from libraries`);
+      }
+
+      // Then scan local directive sources (higher priority - will override library)
       if (directiveSources.length > 0) {
         const files = await glob(directiveSources, {
           cwd: rootDir,
           absolute: true,
         });
 
+        let localCount = 0;
         for (const file of files) {
           const directives = scanFileForDirectives(file);
           for (const [name, info] of directives) {
             customDirectives.set(name, info);
+            localCount++;
           }
         }
 
-        if (isDev && customDirectives.size > 0) {
-          console.log(`[gonia] Discovered ${customDirectives.size} custom directive(s)`);
+        if (isDev && localCount > 0) {
+          console.log(`[gonia] Discovered ${localCount} local directive(s)`);
         }
       }
     },
