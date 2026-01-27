@@ -55,7 +55,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "happy-dom": "^20.3.9",
+    "happy-dom": "^20.0.2",
     "tinyglobby": "^0.2.15"
   },
   "peerDependencies": {
