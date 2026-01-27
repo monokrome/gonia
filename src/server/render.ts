@@ -15,6 +15,21 @@ import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { resolveContext, ContextKey } from '../context-registry.js';
 
 /**
+ * Decode HTML entities that happy-dom doesn't decode.
+ *
+ * @internal
+ */
+function decodeHTMLEntities(str: string): string {
+  return str
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/**
  * Registry of directives by name.
  */
 export type DirectiveRegistry = Map<string, Directive>;
@@ -199,6 +214,28 @@ export async function render(
             continue;
           }
 
+          // Handle g-scope elements that don't have other directives
+          // Add a placeholder entry so they get processed
+          if (match.hasAttribute('g-scope')) {
+            let hasDirective = false;
+            for (const [name] of registry) {
+              if (match.hasAttribute(`g-${name}`)) {
+                hasDirective = true;
+                break;
+              }
+            }
+            if (!hasDirective) {
+              index.push({
+                el: match,
+                name: 'scope',
+                directive: null,
+                expr: '' as Expression,
+                priority: DirectivePriority.STRUCTURAL,
+                isNativeSlot: false
+              });
+            }
+          }
+
           for (const [name, directive] of registry) {
             const attr = match.getAttribute(`g-${name}`);
             if (attr !== null) {
@@ -208,7 +245,7 @@ export async function render(
                 el: match,
                 name,
                 directive,
-                expr: attr as Expression,
+                expr: decodeHTMLEntities(attr) as Expression,
                 priority: directive.priority ?? DirectivePriority.NORMAL,
                 using: registration?.options.using
               });
@@ -286,7 +323,7 @@ export async function render(
       // Process g-scope first (inline scope initialization)
       const scopeAttr = el.getAttribute('g-scope');
       if (scopeAttr) {
-        const scopeValues = ctx.eval<Record<string, unknown>>(scopeAttr as Expression);
+        const scopeValues = ctx.eval<Record<string, unknown>>(decodeHTMLEntities(scopeAttr) as Expression);
         if (scopeValues && typeof scopeValues === 'object') {
           Object.assign(state, scopeValues);
         }
@@ -296,7 +333,7 @@ export async function render(
       for (const attr of [...el.attributes]) {
         if (attr.name.startsWith('g-bind:')) {
           const targetAttr = attr.name.slice('g-bind:'.length);
-          const value = ctx.eval(attr.value as Expression);
+          const value = ctx.eval(decodeHTMLEntities(attr.value) as Expression);
           if (value === null || value === undefined) {
             el.removeAttribute(targetAttr);
           } else {
@@ -313,6 +350,9 @@ export async function render(
 
         if (item.isNativeSlot) {
           processNativeSlot(item.el as unknown as HTMLSlotElement);
+        } else if (item.directive === null) {
+          // Placeholder for g-scope - already processed above
+          continue;
         } else {
           const config = createServerResolverConfig(item.el, state);
           const args = resolveInjectables(item.directive!, item.expr, item.el, ctx.eval.bind(ctx), config, item.using);

@@ -541,3 +541,33 @@ describe('g-for SSR', () => {
     expect(result).toContain('>age: 30</li>');
   });
 });
+
+describe('HTML entity decoding', () => {
+  it('should decode numeric entities in directive expressions', async () => {
+    const registry = new Map<string, Directive>();
+    registry.set('text', text);
+
+    // &#34; is the numeric entity for double quote
+    // This simulates what happens when JSON is HTML-encoded
+    const result = await render(
+      '<span g-text="{&#34;name&#34;: &#34;Alice&#34;}.name"></span>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('>Alice</span>');
+  });
+
+  it('should decode numeric entities in g-scope', async () => {
+    const registry = new Map<string, Directive>();
+    registry.set('text', text);
+
+    const result = await render(
+      '<div g-scope="{&#34;title&#34;: &#34;Hello&#34;}"><span g-text="title"></span></div>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('>Hello</span>');
+  });
+});
