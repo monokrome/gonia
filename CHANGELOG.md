@@ -1,3 +1,13 @@
+## [0.2.2](https://github.com/monokrome/gonia/compare/v0.2.1...v0.2.2) (2026-01-27)
+
+
+### Bug Fixes
+
+* decode HTML entities in SSR attribute expressions ([7466f8a](https://github.com/monokrome/gonia/commit/7466f8a))
+* process g-scope-only elements in SSR
+
+
+
 ## [0.2.1](https://github.com/monokrome/gonia/compare/v0.2.0...v0.2.1) (2026-01-27)
 
 
