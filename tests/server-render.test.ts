@@ -668,3 +668,106 @@ describe('regression tests', () => {
     expect(result).not.toContain('NO_CONFIG');
   });
 });
+
+describe('custom element directives', () => {
+  it('should render custom element directive with template', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+
+    // Register a custom element directive
+    directive('my-card', null, {
+      template: '<div class="card">Card rendered</div>'
+    });
+
+    const registry = new Map<string, Directive>();
+
+    const result = await render(
+      '<my-card></my-card>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('<div class="card">');
+    expect(result).toContain('Card rendered');
+
+    clearDirectives();
+  });
+
+  it('should render custom element directive with scope and function', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+
+    // Register a custom element directive with scope and function
+    const counterFn: Directive = ($scope: Record<string, unknown>) => {
+      $scope.count = 42;
+    };
+    counterFn.$inject = ['$scope'];
+
+    directive('my-counter', counterFn, {
+      scope: true,
+      template: '<span class="counter">Count initialized</span>'
+    });
+
+    const registry = new Map<string, Directive>();
+
+    const result = await render(
+      '<my-counter></my-counter>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('<span class="counter">');
+
+    clearDirectives();
+  });
+
+  it('should support attribute directives with different prefixes', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+
+    // Register an attribute directive with l- prefix
+    const highlightFn: Directive = ($element: Element) => {
+      $element.classList.add('highlight');
+    };
+    highlightFn.$inject = ['$element'];
+
+    directive('l-highlight', highlightFn, {});
+
+    const registry = new Map<string, Directive>();
+
+    const result = await render(
+      '<span l-highlight="">Text</span>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('class="highlight"');
+
+    clearDirectives();
+  });
+
+  it('should support attribute directives with v- prefix', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+
+    // Register a Vue-style directive
+    const showFn: Directive = ($element: Element, $expr: Expression, $eval: (expr: Expression) => unknown) => {
+      const value = $eval($expr);
+      if (!value) {
+        ($element as HTMLElement).style.display = 'none';
+      }
+    };
+    showFn.$inject = ['$element', '$expr', '$eval'];
+
+    directive('v-show', showFn, {});
+
+    const registry = new Map<string, Directive>();
+
+    const result = await render(
+      '<div v-show="visible">Visible</div><div v-show="hidden">Hidden</div>',
+      { visible: true, hidden: false },
+      registry
+    );
+
+    expect(result).toContain('>Visible</div>');
+    expect(result).toContain('style="display: none;"');
+
+    clearDirectives();
+  });
+});

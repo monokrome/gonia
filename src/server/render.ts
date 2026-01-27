@@ -5,7 +5,7 @@
  */
 
 import { Window } from 'happy-dom';
-import { Mode, Directive, Expression, DirectivePriority, Context, getDirective } from '../types.js';
+import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames, TemplateAttrs } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
 import { registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
@@ -44,25 +44,65 @@ export type ServiceRegistry = Map<string, unknown>;
 /** Registered services */
 let services: ServiceRegistry = new Map();
 
-const selectorCache = new WeakMap<DirectiveRegistry, string>();
-
 /**
  * Build a CSS selector for all registered directives.
+ * Uses the global directive registry to support any prefix (g-, l-, v-, etc.).
+ * Also includes local registry entries with g- prefix for backward compatibility.
  *
  * @internal
  */
-function getSelector(registry: DirectiveRegistry): string {
-  let selector = selectorCache.get(registry);
-  if (!selector) {
-    const directiveSelectors = [...registry.keys()].map(n => `[g-${n}]`);
-    // Also match native <slot> elements
-    directiveSelectors.push('slot');
-    // Match g-scope for inline scope initialization
-    directiveSelectors.push('[g-scope]');
-    selector = directiveSelectors.join(',');
-    selectorCache.set(registry, selector);
+function getSelector(localRegistry?: DirectiveRegistry): string {
+  const selectors: string[] = [];
+
+  for (const name of getDirectiveNames()) {
+    const registration = getDirective(name);
+    if (!registration) continue;
+
+    const { options } = registration;
+
+    // Custom element directives - match by tag name
+    if (options.template || options.scope || options.provide || options.using) {
+      selectors.push(name);
+    }
+
+    // All directives can be used as attributes
+    selectors.push(`[${name}]`);
   }
-  return selector;
+
+  // Add local registry entries with g- prefix (backward compatibility)
+  if (localRegistry) {
+    for (const name of localRegistry.keys()) {
+      const fullName = `g-${name}`;
+      // Skip if already in global registry
+      if (!getDirective(fullName)) {
+        selectors.push(`[${fullName}]`);
+      }
+    }
+  }
+
+  // Also match native <slot> elements
+  selectors.push('slot');
+  // Match g-scope for inline scope initialization (TODO: make prefix configurable)
+  selectors.push('[g-scope]');
+
+  return selectors.join(',');
+}
+
+/**
+ * Get template attributes from an element.
+ *
+ * @internal
+ */
+function getTemplateAttrs(el: Element): TemplateAttrs {
+  const attrs: TemplateAttrs = {
+    children: el.innerHTML
+  };
+
+  for (const attr of el.attributes) {
+    attrs[attr.name] = attr.value;
+  }
+
+  return attrs;
 }
 
 /**
@@ -82,12 +122,11 @@ function hasBindAttributes(el: Element): boolean {
 /**
  * Register a directive in the registry.
  *
- * @remarks
- * Invalidates the cached selector so it will be rebuilt on next render.
- *
  * @param registry - The directive registry
- * @param name - Directive name (without g- prefix)
+ * @param name - Directive name
  * @param fn - The directive function
+ *
+ * @deprecated Use `directive()` from 'gonia' instead to register directives globally.
  */
 export function registerDirective(
   registry: DirectiveRegistry,
@@ -95,7 +134,6 @@ export function registerDirective(
   fn: Directive
 ): void {
   registry.set(name, fn);
-  selectorCache.delete(registry);
 }
 
 /**
@@ -170,6 +208,7 @@ interface IndexedDirective {
   expr: Expression;
   priority: number;
   isNativeSlot?: boolean;
+  isCustomElement?: boolean;
   using?: ContextKey<unknown>[];
 }
 
@@ -244,8 +283,8 @@ export async function render(
           // Add a placeholder entry so they get processed
           if (match.hasAttribute('g-scope')) {
             let hasDirective = false;
-            for (const [name] of registry) {
-              if (match.hasAttribute(`g-${name}`)) {
+            for (const name of getDirectiveNames()) {
+              if (match.hasAttribute(name)) {
                 hasDirective = true;
                 break;
               }
@@ -262,18 +301,59 @@ export async function render(
             }
           }
 
+          // Check all registered directives from global registry
+          const tagName = match.tagName.toLowerCase();
+
+          for (const name of getDirectiveNames()) {
+            const registration = getDirective(name);
+            if (!registration) continue;
+
+            const { fn, options } = registration;
+
+            // Check if this is a custom element directive (tag name matches)
+            if (tagName === name) {
+              if (options.template || options.scope || options.provide || options.using) {
+                index.push({
+                  el: match,
+                  name,
+                  directive: fn,
+                  expr: '' as Expression,
+                  priority: fn?.priority ?? DirectivePriority.TEMPLATE,
+                  isCustomElement: true,
+                  using: options.using
+                });
+              }
+            }
+
+            // Check if this is an attribute directive
+            const attr = match.getAttribute(name);
+            if (attr !== null) {
+              index.push({
+                el: match,
+                name,
+                directive: fn,
+                expr: decodeHTMLEntities(attr) as Expression,
+                priority: fn?.priority ?? DirectivePriority.NORMAL,
+                using: options.using
+              });
+            }
+          }
+
+          // Also check local registry for backward compatibility
+          // Local registry uses short names with g- prefix
           for (const [name, directive] of registry) {
             const attr = match.getAttribute(`g-${name}`);
             if (attr !== null) {
-              // Look up options from the global directive registry
-              const registration = getDirective(`g-${name}`);
+              // Skip if already added from global registry
+              const fullName = `g-${name}`;
+              if (getDirective(fullName)) continue;
+
               index.push({
                 el: match,
                 name,
                 directive,
                 expr: decodeHTMLEntities(attr) as Expression,
-                priority: directive.priority ?? DirectivePriority.NORMAL,
-                using: registration?.options.using
+                priority: directive.priority ?? DirectivePriority.NORMAL
               });
             }
           }
@@ -376,10 +456,65 @@ export async function render(
 
         if (item.isNativeSlot) {
           processNativeSlot(item.el as unknown as HTMLSlotElement);
+        } else if (item.isCustomElement) {
+          // Custom element directive - must check before directive === null
+          // because custom elements can have fn: null (template-only)
+          // Custom element directive - process template, scope, etc.
+          const registration = getDirective(item.name);
+          if (!registration) continue;
+
+          const { fn, options } = registration;
+
+          // 1. Create scope if needed
+          let scopeState: Record<string, unknown>;
+          if (options.scope) {
+            const parentScope = findServerScope(item.el, state);
+            scopeState = createElementScope(item.el, parentScope);
+
+            // Apply assigned values to scope
+            if (options.assign) {
+              Object.assign(scopeState, options.assign);
+            }
+          } else {
+            scopeState = findServerScope(item.el, state);
+          }
+
+          // 2. Register DI providers if present
+          if (options.provide) {
+            registerDIProviders(item.el, options.provide);
+          }
+
+          // 3. Call directive function if present (initializes state)
+          if (fn) {
+            const config = createServerResolverConfig(item.el, scopeState, state);
+            const args = resolveInjectables(fn, item.expr, item.el, ctx.eval.bind(ctx), config, options.using);
+            await (fn as (...args: unknown[]) => void | Promise<void>)(...args);
+
+            // Register as context provider if directive declares $context
+            if (fn.$context?.length) {
+              registerProvider(item.el, fn, scopeState);
+            }
+          }
+
+          // 4. Render template if present
+          if (options.template) {
+            const attrs = getTemplateAttrs(item.el);
+            let html: string;
+
+            if (typeof options.template === 'string') {
+              html = options.template;
+            } else {
+              const result = options.template(attrs, item.el);
+              html = result instanceof Promise ? await result : result;
+            }
+
+            item.el.innerHTML = html;
+          }
         } else if (item.directive === null) {
           // Placeholder for g-scope - already processed above
           continue;
         } else {
+          // Attribute directive
           // Determine scope for this directive
           let scopeState: Record<string, unknown>;
 
