@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom';
+import { parseHTML } from 'linkedom/worker';
 import { text } from '../src/directives/text.js';
 import { html } from '../src/directives/html.js';
 import { show } from '../src/directives/show.js';
@@ -293,5 +293,50 @@ describe('configureDirective', () => {
 
     const reg = getDirective('late-context');
     expect(reg?.options.using).toEqual([ThemeContext]);
+  });
+});
+
+describe('assign option', () => {
+  beforeEach(() => {
+    clearDirectives();
+  });
+
+  it('should throw error when assign is used without scope: true', () => {
+    const fn = () => {};
+
+    expect(() => {
+      directive('no-scope-assign', fn, {
+        assign: { $styles: { container: 'abc123' } }
+      });
+    }).toThrow("Directive 'no-scope-assign': 'assign' requires 'scope: true'");
+  });
+
+  it('should allow assign with scope: true', () => {
+    const fn = () => {};
+    const styles = { container: 'abc123', button: 'def456' };
+
+    directive('scoped-assign', fn, {
+      scope: true,
+      assign: { $styles: styles }
+    });
+
+    const reg = getDirective('scoped-assign');
+    expect(reg?.options.scope).toBe(true);
+    expect(reg?.options.assign).toEqual({ $styles: styles });
+  });
+
+  it('should store multiple assigned values', () => {
+    const fn = () => {};
+    const styles = { container: 'abc' };
+    const config = { theme: 'dark' };
+
+    directive('multi-assign', fn, {
+      scope: true,
+      assign: { $styles: styles, $config: config }
+    });
+
+    const reg = getDirective('multi-assign');
+    expect(reg?.options.assign?.$styles).toBe(styles);
+    expect(reg?.options.assign?.$config).toBe(config);
   });
 });

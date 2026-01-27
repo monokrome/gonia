@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom';
+import { parseHTML } from 'linkedom/worker';
 import { processElementDirectives, processElementTree } from '../src/process.js';
 import { Mode } from '../src/types.js';
 import { reactive, createScope } from '../src/reactivity.js';

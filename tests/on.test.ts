@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom';
+import { parseHTML } from 'linkedom/worker';
 import { on } from '../src/directives/on.js';
 import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';

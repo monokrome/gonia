@@ -54,10 +54,10 @@ describe('E2E: SSR → Hydration', () => {
    * This mimics how real apps (like todo-app) provide state to child elements.
    */
   function createStateProvider(initialState: Record<string, unknown>) {
-    const stateProvider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      Object.assign($state, initialState);
+    const stateProvider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      Object.assign($scope, initialState);
     };
-    stateProvider.$inject = ['$element', '$state'];
+    stateProvider.$inject = ['$element', '$scope'];
     return stateProvider;
   }
 
@@ -250,10 +250,10 @@ describe('E2E: Hydration preserves SSR content', () => {
     document.body.innerHTML = ssrHtml;
 
     // Create provider with same state as server
-    const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      $state.message = 'Hello World';
+    const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      $scope.message = 'Hello World';
     };
-    provider.$inject = ['$element', '$state'];
+    provider.$inject = ['$element', '$scope'];
     directive('app', provider, { scope: true });
 
     // Wrap in app element for scoped state
@@ -285,10 +285,10 @@ describe('E2E: Hydration preserves SSR content', () => {
     expect(ssrHtml).toContain('>Banana</li>');
 
     // Create provider with same state
-    const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      $state.items = ['Apple', 'Banana'];
+    const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      $scope.items = ['Apple', 'Banana'];
     };
-    provider.$inject = ['$element', '$state'];
+    provider.$inject = ['$element', '$scope'];
     directive('app', provider, { scope: true });
 
     // Simulate browser with SSR content
@@ -320,10 +320,10 @@ describe('E2E: Hydration preserves SSR content', () => {
 
     expect(ssrHtml).toContain('style="display:none"');
 
-    const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      $state.visible = false;
+    const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      $scope.visible = false;
     };
-    provider.$inject = ['$element', '$state'];
+    provider.$inject = ['$element', '$scope'];
     directive('app', provider, { scope: true });
 
     document.body.innerHTML = `<app>${ssrHtml}</app>`;
@@ -345,10 +345,10 @@ describe('E2E: Hydration preserves SSR content', () => {
 
     expect(ssrHtml).toContain('class="active"');
 
-    const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      $state.isActive = true;
+    const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      $scope.isActive = true;
     };
-    provider.$inject = ['$element', '$state'];
+    provider.$inject = ['$element', '$scope'];
     directive('app', provider, { scope: true });
 
     document.body.innerHTML = `<app>${ssrHtml}</app>`;
@@ -379,10 +379,10 @@ describe('E2E: Client hydration initialization', () => {
 
   it('should hydrate g-text with scoped state', async () => {
     // Create a state provider directive that sets up state
-    const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      $state.message = 'Hello World';
+    const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      $scope.message = 'Hello World';
     };
-    provider.$inject = ['$element', '$state'];
+    provider.$inject = ['$element', '$scope'];
     directive('test-provider', provider, { scope: true });
 
     document.body.innerHTML = '<test-provider><span g-text="message"></span></test-provider>';
@@ -395,10 +395,10 @@ describe('E2E: Client hydration initialization', () => {
   });
 
   it('should hydrate g-show based on state', async () => {
-    const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      $state.visible = false;
+    const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      $scope.visible = false;
     };
-    provider.$inject = ['$element', '$state'];
+    provider.$inject = ['$element', '$scope'];
     directive('test-provider', provider, { scope: true });
 
     document.body.innerHTML = '<test-provider><p g-show="visible">Content</p></test-provider>';
@@ -412,10 +412,10 @@ describe('E2E: Client hydration initialization', () => {
 
   // TODO: g-class hydration needs investigation
   it.skip('should hydrate g-class based on state', async () => {
-    const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      $state.isActive = true;
+    const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      $scope.isActive = true;
     };
-    provider.$inject = ['$element', '$state'];
+    provider.$inject = ['$element', '$scope'];
     directive('test-provider', provider, { scope: true });
 
     document.body.innerHTML = '<test-provider><button g-class="{ active: isActive }">Click</button></test-provider>';
@@ -429,10 +429,10 @@ describe('E2E: Client hydration initialization', () => {
 
   // TODO: g-for client hydration needs investigation
   it.skip('should hydrate g-for and render items', async () => {
-    const provider: Directive = ($element: Element, $state: Record<string, unknown>) => {
-      $state.items = ['Apple', 'Banana'];
+    const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      $scope.items = ['Apple', 'Banana'];
     };
-    provider.$inject = ['$element', '$state'];
+    provider.$inject = ['$element', '$scope'];
     directive('test-provider', provider, { scope: true });
 
     document.body.innerHTML = '<test-provider><ul><li g-for="item in items" g-text="item"></li></ul></test-provider>';
@@ -444,5 +444,74 @@ describe('E2E: Client hydration initialization', () => {
     expect(items.length).toBe(2);
     expect(items[0].textContent).toBe('Apple');
     expect(items[1].textContent).toBe('Banana');
+  });
+});
+
+describe('E2E: assign option', () => {
+  beforeEach(() => {
+    clearDirectives();
+    directive('g-text', text);
+    directive('g-class', cclass);
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    clearDirectives();
+  });
+
+  it('should make assigned values available in expressions', async () => {
+    const styles = { container: 'style-abc123', title: 'style-def456' };
+
+    // Directive with assign option
+    const handler: Directive = () => {};
+    directive('styled-component', handler, {
+      scope: true,
+      assign: { $styles: styles }
+    });
+
+    document.body.innerHTML = '<styled-component><div g-class="{ [$styles.container]: true }"></div></styled-component>';
+
+    await init();
+    await new Promise(r => setTimeout(r, 10));
+
+    const div = document.querySelector('div')!;
+    expect(div.classList.contains('style-abc123')).toBe(true);
+  });
+
+  it('should make assigned values available in g-text expressions', async () => {
+    const config = { greeting: 'Hello from assign!' };
+
+    const handler: Directive = () => {};
+    directive('config-component', handler, {
+      scope: true,
+      assign: { $config: config }
+    });
+
+    document.body.innerHTML = '<config-component><span g-text="$config.greeting"></span></config-component>';
+
+    await init();
+    await new Promise(r => setTimeout(r, 10));
+
+    const span = document.querySelector('span')!;
+    expect(span.textContent).toBe('Hello from assign!');
+  });
+
+  it('should allow multiple assigned values', async () => {
+    const styles = { box: 'box-class' };
+    const theme = { mode: 'dark' };
+
+    const handler: Directive = () => {};
+    directive('multi-assign-component', handler, {
+      scope: true,
+      assign: { $styles: styles, $theme: theme }
+    });
+
+    document.body.innerHTML = '<multi-assign-component><span g-text="$theme.mode"></span></multi-assign-component>';
+
+    await init();
+    await new Promise(r => setTimeout(r, 10));
+
+    const span = document.querySelector('span')!;
+    expect(span.textContent).toBe('dark');
   });
 });

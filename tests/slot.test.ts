@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom';
+import { parseHTML } from 'linkedom/worker';
 import { slot, processNativeSlot } from '../src/directives/slot.js';
 import { template, getSavedContent, SlotContent } from '../src/directives/template.js';
 import { createMemoryRegistry } from '../src/templates.js';

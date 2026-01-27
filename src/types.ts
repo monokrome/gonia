@@ -54,7 +54,7 @@ export interface InjectableRegistry {
   /** Function to evaluate expressions against state */
   $eval: EvalFn;
   /** Local reactive state object (isolated per element) */
-  $state: Record<string, unknown>;
+  $scope: Record<string, unknown>;
   /** Root reactive state object (shared across all elements) */
   $rootState: Record<string, unknown>;
   /** Template registry for g-template directive */
@@ -76,7 +76,7 @@ type ContextKeyValue<K> = K extends ContextKey<infer V> ? V : never;
  *
  * @example
  * ```ts
- * type Args = MapInjectables<['$element', '$state']>;
+ * type Args = MapInjectables<['$element', '$scope']>;
  * // => [Element, Record<string, unknown>]
  *
  * // With context keys
@@ -171,7 +171,7 @@ export interface DirectiveMeta<T = InjectableRegistry> {
    * - `$expr`: The expression string from the attribute
    * - `$element`: The target DOM element
    * - `$eval`: Function to evaluate expressions: `(expr) => value`
-   * - `$state`: Local reactive state object (isolated per element)
+   * - `$scope`: Local reactive state object (isolated per element)
    * - Any registered service names
    * - Any `ContextKey` for typed context resolution
    * - Any names provided by ancestor directives via `$context`
@@ -179,7 +179,7 @@ export interface DirectiveMeta<T = InjectableRegistry> {
    * @example
    * ```ts
    * // String-based injection
-   * myDirective.$inject = ['$element', '$state'];
+   * myDirective.$inject = ['$element', '$scope'];
    *
    * // With typed context keys
    * myDirective.$inject = ['$element', SlotContentContext];
@@ -191,16 +191,16 @@ export interface DirectiveMeta<T = InjectableRegistry> {
    * Names this directive exposes as context to descendants.
    *
    * @remarks
-   * When a directive declares `$context`, its `$state` becomes
+   * When a directive declares `$context`, its `$scope` becomes
    * available to descendant directives under those names.
    * Useful for passing state through isolate scope boundaries.
    *
    * @example
    * ```ts
-   * const themeProvider: Directive = ($state) => {
-   *   $state.mode = 'dark';
+   * const themeProvider: Directive = ($scope) => {
+   *   $scope.mode = 'dark';
    * };
-   * themeProvider.$inject = ['$state'];
+   * themeProvider.$inject = ['$scope'];
    * themeProvider.$context = ['theme'];
    *
    * // Descendants can inject 'theme'
@@ -370,7 +370,7 @@ export interface DirectiveOptions {
    * const ThemeContext = createContextKey<{ mode: 'light' | 'dark' }>('Theme');
    * const UserContext = createContextKey<{ name: string }>('User');
    *
-   * directive('themed-greeting', ($element, $state, theme, user) => {
+   * directive('themed-greeting', ($element, $scope, theme, user) => {
    *   // theme and user are resolved from the using array
    *   $element.textContent = `Hello ${user.name}!`;
    *   $element.className = theme.mode;
@@ -380,6 +380,41 @@ export interface DirectiveOptions {
    * ```
    */
   using?: ContextKey<unknown>[];
+
+  /**
+   * Values to assign to the directive's scope.
+   *
+   * @remarks
+   * Requires `scope: true`. Assigns the provided values to the
+   * directive's scope, making them available in expressions.
+   *
+   * Useful for injecting external values (like styles) that should
+   * be accessible in templates without manual `$scope` assignment.
+   *
+   * @example
+   * ```ts
+   * import styles from './button.css';
+   *
+   * directive('my-button', handler, {
+   *   scope: true,
+   *   assign: { $styles: styles }
+   * });
+   *
+   * // In template:
+   * // <div g-class="$styles.container">...</div>
+   * ```
+   */
+  assign?: Record<string, unknown>;
+
+  /**
+   * Index signature for custom options.
+   *
+   * @remarks
+   * Allows libraries to pass additional options that gonia
+   * doesn't process directly. Libraries can create typed
+   * wrapper functions around `directive()` for type safety.
+   */
+  [key: string]: unknown;
 }
 
 /** Registered directive with options */
@@ -410,8 +445,8 @@ const directiveRegistry = new Map<string, DirectiveRegistration>();
  * @example
  * ```ts
  * // Directive with behavior
- * directive('todo-app', ($element, $state) => {
- *   $state.todos = [];
+ * directive('todo-app', ($element, $scope) => {
+ *   $scope.todos = [];
  * }, { scope: true });
  *
  * // Template-only directive
@@ -422,6 +457,14 @@ const directiveRegistry = new Map<string, DirectiveRegistration>();
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function directive(name: string, fn: Directive<any> | null, options: DirectiveOptions = {}): void {
+  // Validate: assign requires scope: true
+  if (options.assign && !options.scope) {
+    throw new Error(
+      `Directive '${name}': 'assign' requires 'scope: true'. ` +
+      `To modify parent scope, use $scope in your directive function.`
+    );
+  }
+
   directiveRegistry.set(name, { fn, options });
 
   // Register as custom element if name contains hyphen and scope is true

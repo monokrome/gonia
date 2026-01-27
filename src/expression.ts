@@ -46,9 +46,24 @@ export function findRoots(expr: string): string[] {
     .replace(/"(?:[^"\\]|\\.)*"/g, '""')
     .replace(/`(?:[^`\\$]|\\.|\$(?!\{))*`/g, '""');
 
-  const matches = cleaned.match(/(?<![.\w$])\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g) || [];
+  // Match identifiers that are not preceded by a dot
+  // Use simpler approach: match all identifiers, then filter out property accesses
+  const allIdentifiers = cleaned.match(/[a-zA-Z_$][a-zA-Z0-9_$]*/g) || [];
 
-  const roots = [...new Set(matches.filter(m => !JS_KEYWORDS.has(m)))];
+  // Filter to keep only root identifiers (not after a dot)
+  const roots: string[] = [];
+  let lastEnd = 0;
+  for (const id of allIdentifiers) {
+    const pos = cleaned.indexOf(id, lastEnd);
+    // Check if preceded by a dot (with optional whitespace)
+    const before = cleaned.slice(0, pos).trimEnd();
+    if (!before.endsWith('.')) {
+      if (!JS_KEYWORDS.has(id) && !roots.includes(id)) {
+        roots.push(id);
+      }
+    }
+    lastEnd = pos + id.length;
+  }
 
   return roots;
 }

@@ -275,18 +275,18 @@ describe('render edge cases', () => {
 });
 
 describe('dependency injection', () => {
-  it('should inject $state as local element state', async () => {
+  it('should inject $scope as local element state', async () => {
     const registry = new Map<string, Directive>();
 
     const stateDirective: Directive = (
       $element: Element,
-      $state: Record<string, unknown>
+      $scope: Record<string, unknown>
     ) => {
-      // $state is local to this element, starts empty
-      $state.count = 42;
-      ($element as HTMLElement).textContent = JSON.stringify($state);
+      // $scope is local to this element, starts empty
+      $scope.count = 42;
+      ($element as HTMLElement).textContent = JSON.stringify($scope);
     };
-    stateDirective.$inject = ['$element', '$state'];
+    stateDirective.$inject = ['$element', '$scope'];
 
     registry.set('state', stateDirective);
 
@@ -299,24 +299,24 @@ describe('dependency injection', () => {
     expect(result).toContain('{"count":42}');
   });
 
-  it('should share $state between directives on same element', async () => {
+  it('should share $scope between directives on same element', async () => {
     const registry = new Map<string, Directive>();
 
     // First directive sets a value
-    const setterDirective: Directive = ($state: Record<string, unknown>) => {
-      $state.value = 'shared';
+    const setterDirective: Directive = ($scope: Record<string, unknown>) => {
+      $scope.value = 'shared';
     };
-    setterDirective.$inject = ['$state'];
+    setterDirective.$inject = ['$scope'];
     setterDirective.priority = 100; // Run first
 
     // Second directive reads it
     const readerDirective: Directive = (
       $element: Element,
-      $state: Record<string, unknown>
+      $scope: Record<string, unknown>
     ) => {
-      ($element as HTMLElement).textContent = $state.value as string;
+      ($element as HTMLElement).textContent = $scope.value as string;
     };
-    readerDirective.$inject = ['$element', '$state'];
+    readerDirective.$inject = ['$element', '$scope'];
 
     registry.set('setter', setterDirective);
     registry.set('reader', readerDirective);
@@ -372,11 +372,11 @@ describe('dependency injection', () => {
     const registry = new Map<string, Directive>();
 
     // Provider sets up state and declares $context
-    const themeProvider: Directive = ($state: Record<string, unknown>) => {
-      $state.mode = 'dark';
-      $state.primary = '#007bff';
+    const themeProvider: Directive = ($scope: Record<string, unknown>) => {
+      $scope.mode = 'dark';
+      $scope.primary = '#007bff';
     };
-    themeProvider.$inject = ['$state'];
+    themeProvider.$inject = ['$scope'];
     themeProvider.$context = ['theme'];
 
     // Consumer injects 'theme' from ancestor
@@ -405,10 +405,10 @@ describe('dependency injection', () => {
     const registry = new Map<string, Directive>();
 
     // Provider stores expression in state and declares $context
-    const provider: Directive = ($state: Record<string, unknown>, $expr: Expression) => {
-      $state.value = $expr;
+    const provider: Directive = ($scope: Record<string, unknown>, $expr: Expression) => {
+      $scope.value = $expr;
     };
-    provider.$inject = ['$state', '$expr'];
+    provider.$inject = ['$scope', '$expr'];
     provider.$context = ['config'];
 
     // Consumer injects 'config' from nearest ancestor provider

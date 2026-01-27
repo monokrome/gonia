@@ -54,7 +54,7 @@ function renderItems(
   insertAfterNode: Node,
   parsed: { itemName: string; indexName: string | null; iterableName: string },
   $eval: EvalFn,
-  $state: Record<string, unknown>,
+  $scope: Record<string, unknown>,
   mode: Mode
 ): Element[] {
   const { itemName, indexName, iterableName } = parsed;
@@ -102,7 +102,7 @@ function renderItems(
     clone.setAttribute(FOR_PROCESSED_ATTR, '');
 
     // Process with shared utility
-    processElementTree(clone, $state, mode, { scopeAdditions });
+    processElementTree(clone, $scope, mode, { scopeAdditions });
 
     if (insertAfter.nextSibling) {
       parent.insertBefore(clone, insertAfter.nextSibling);
@@ -147,11 +147,11 @@ function removeSSRItems(templateEl: Element): void {
  * <div g-for="(value, key) in object" g-text="key + ': ' + value"></div>
  * ```
  */
-export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> = function cfor(
+export const cfor: Directive<['$expr', '$element', '$eval', '$scope', '$mode']> = function cfor(
   $expr: Expression,
   $element: Element,
   $eval: EvalFn,
-  $state: Record<string, unknown>,
+  $scope: Record<string, unknown>,
   $mode: Mode
 ) {
   const parsed = parseForExpression($expr as string);
@@ -187,7 +187,7 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
     parent.replaceChild(templateWrapper, $element);
 
     // Render items after the template
-    renderItems(templateContent, parent, templateWrapper, parsed, $eval, $state, $mode);
+    renderItems(templateContent, parent, templateWrapper, parsed, $eval, $scope, $mode);
     return;
   }
 
@@ -225,7 +225,7 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
           templateWrapper,
           parsed,
           $eval,
-          $state,
+          $scope,
           Mode.CLIENT
         );
       });
@@ -262,7 +262,7 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
           templateWrapper,
           parsed,
           $eval,
-          $state,
+          $scope,
           Mode.CLIENT
         );
       });
@@ -270,7 +270,7 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$state', '$mode']> 
   }
 };
 
-cfor.$inject = ['$expr', '$element', '$eval', '$state', '$mode'];
+cfor.$inject = ['$expr', '$element', '$eval', '$scope', '$mode'];
 cfor.priority = DirectivePriority.STRUCTURAL;
 
 directive('g-for', cfor);

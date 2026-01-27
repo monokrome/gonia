@@ -20,7 +20,7 @@ describe('gonia vite plugin E2E', () => {
       `
 import { directive } from 'gonia';
 
-const tooltip = ($element, $state) => {
+const tooltip = ($element, $scope) => {
   // tooltip implementation
 };
 
@@ -34,8 +34,8 @@ directive('g-tooltip', tooltip);
       `
 import { directive } from 'gonia';
 
-const appHeader = ($element, $state) => {
-  $state.title = 'Header';
+const appHeader = ($element, $scope) => {
+  $scope.title = 'Header';
 };
 
 directive('app-header', appHeader, { scope: true });
@@ -215,15 +215,15 @@ directive('ui-card', card);
       const code = `
 import { directive } from 'gonia';
 
-const myWidget = ($element, $state, $eval) => {
-  $state.value = $eval('initialValue');
+const myWidget = ($element, $scope, $eval) => {
+  $scope.value = $eval('initialValue');
 };
 
 directive('my-widget', myWidget, { scope: true });
 `;
       const result = transform(plugin, code);
 
-      expect(result).toContain('myWidget.$inject = ["$element","$state","$eval"]');
+      expect(result).toContain('myWidget.$inject = ["$element","$scope","$eval"]');
     });
   });
 
