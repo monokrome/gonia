@@ -354,6 +354,36 @@ function generateImports(
 }
 
 /**
+ * Split function parameters, respecting nested angle brackets in generics.
+ */
+function splitParams(paramsStr: string): string[] {
+  const params: string[] = [];
+  let current = '';
+  let depth = 0;
+
+  for (const char of paramsStr) {
+    if (char === '<') {
+      depth++;
+      current += char;
+    } else if (char === '>') {
+      depth--;
+      current += char;
+    } else if (char === ',' && depth === 0) {
+      params.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  if (current.trim()) {
+    params.push(current.trim());
+  }
+
+  return params;
+}
+
+/**
  * Transform source code to add $inject arrays to directive functions.
  */
 function transformInject(code: string): { code: string; modified: boolean } {
@@ -390,9 +420,7 @@ function transformInject(code: string): { code: string; modified: boolean } {
     const paramsStr = fnMatch[1] || fnMatch[2];
     if (!paramsStr) continue;
 
-    const params = paramsStr
-      .split(',')
-      .map(p => p.trim())
+    const params = splitParams(paramsStr)
       .map(p => p.replace(/\s*:.*$/, ''))
       .map(p => p.replace(/\s*=.*$/, ''))
       .filter(Boolean);
@@ -496,7 +524,7 @@ export function gonia(options: GoniaPluginOptions = {}): Plugin {
 
     transform(code, id) {
       // Skip node_modules (except for $inject transform in gonia itself)
-      const isGoniaInternal = id.includes('gonia') && id.includes('node_modules');
+      const isGoniaInternal = id.includes('/gonia/') && (id.includes('node_modules') || id.includes('/dist/'));
       if (id.includes('node_modules') && !isGoniaInternal) return null;
       if (!/\.(ts|js|tsx|jsx|html)$/.test(id)) return null;
 
