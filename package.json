@@ -57,7 +57,7 @@
     "changelog:all": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0"
   },
   "dependencies": {
-    "happy-dom": "^17.4.4",
+    "happy-dom": "^20.3.9",
     "tinyglobby": "^0.2.15"
   },
   "peerDependencies": {
