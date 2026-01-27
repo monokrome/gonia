@@ -43,10 +43,14 @@
     "./vite": {
       "types": "./dist/vite/index.d.ts",
       "import": "./dist/vite/index.js"
+    },
+    "./ts-plugin": {
+      "types": "./dist/ts-plugin/index.d.ts",
+      "require": "./dist/ts-plugin/index.js"
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p src/ts-plugin/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
