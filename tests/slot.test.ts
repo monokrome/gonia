@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom/worker';
+import { Window } from 'happy-dom';
 import { slot, processNativeSlot } from '../src/directives/slot.js';
 import { template, getSavedContent, SlotContent } from '../src/directives/template.js';
 import { createMemoryRegistry } from '../src/templates.js';
@@ -13,8 +13,8 @@ describe('slot directive', () => {
   let $eval: EvalFn;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
     const ctx = createContext(Mode.SERVER, {});
     $eval = ctx.eval.bind(ctx);
   });
@@ -159,8 +159,8 @@ describe('processNativeSlot', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should use name attribute for slot name', () => {

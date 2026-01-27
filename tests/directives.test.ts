@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom/worker';
+import { Window } from 'happy-dom';
 import { text } from '../src/directives/text.js';
 import { html } from '../src/directives/html.js';
 import { show } from '../src/directives/show.js';
@@ -12,8 +12,8 @@ describe('text directive', () => {
   let $eval: EvalFn;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should set element textContent', () => {
@@ -84,8 +84,8 @@ describe('html directive', () => {
   let $eval: EvalFn;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should set element innerHTML', () => {
@@ -136,8 +136,8 @@ describe('show directive', () => {
   let $eval: EvalFn;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should show element when value is truthy', () => {

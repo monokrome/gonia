@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom/worker';
+import { Window } from 'happy-dom';
 import {
   template,
   findTemplateAncestor,
@@ -13,8 +13,8 @@ describe('findTemplateAncestor', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should return null when element has no parent', () => {
@@ -75,8 +75,8 @@ describe('getSavedContent', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should return undefined for element without saved content', () => {
@@ -181,8 +181,8 @@ describe('template directive', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should have TEMPLATE priority', () => {
@@ -284,8 +284,8 @@ describe('getEffectScope (template.ts)', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should return undefined for element without scope', () => {

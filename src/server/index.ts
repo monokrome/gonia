@@ -4,5 +4,5 @@
  * @packageDocumentation
  */
 
-export { render, registerDirective } from './render.js';
+export { render, registerDirective, registerService } from './render.js';
 export type { DirectiveRegistry } from './render.js';

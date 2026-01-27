@@ -78,7 +78,7 @@ describe('E2E: SSR → Hydration', () => {
       serverRegistry
     );
 
-    expect(ssrHtml).toContain('style="display:"');
+    expect(ssrHtml).not.toContain('style="display: none;"');
   });
 
   it('should render g-show hidden on server', async () => {
@@ -88,7 +88,7 @@ describe('E2E: SSR → Hydration', () => {
       serverRegistry
     );
 
-    expect(ssrHtml).toContain('style="display:none"');
+    expect(ssrHtml).toContain('style="display: none;"');
   });
 
   it('should render g-class on server', async () => {
@@ -207,7 +207,7 @@ describe('E2E: SSR → Hydration', () => {
 
     expect(ssrHtml).toContain('>Hello</span>');
     expect(ssrHtml).toContain('class="highlight"');
-    expect(ssrHtml).toContain('style="display:"');
+    expect(ssrHtml).not.toContain('style="display: none;"');
   });
 });
 
@@ -318,7 +318,7 @@ describe('E2E: Hydration preserves SSR content', () => {
       serverRegistry
     );
 
-    expect(ssrHtml).toContain('style="display:none"');
+    expect(ssrHtml).toContain('style="display: none;"');
 
     const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
       $scope.visible = false;

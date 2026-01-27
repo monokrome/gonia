@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { parseHTML } from 'linkedom/worker';
+import { Window } from 'happy-dom';
 import {
   createTemplateRegistry,
   createMemoryRegistry,
@@ -63,13 +63,12 @@ describe('createTemplateRegistry', () => {
   });
 
   it('should find inline template elements first', async () => {
-    const { document, HTMLTemplateElement } = parseHTML(
-      '<!DOCTYPE html><html><body><template id="card"><div class="card">Inline</div></template></body></html>'
-    );
+    const window = new Window();
+    window.document.body.innerHTML = '<template id="card"><div class="card">Inline</div></template>';
 
     // Mock globals
-    (globalThis as any).document = document;
-    (globalThis as any).HTMLTemplateElement = HTMLTemplateElement;
+    (globalThis as any).document = window.document;
+    (globalThis as any).HTMLTemplateElement = window.HTMLTemplateElement;
 
     const mockFetch = async () => {
       throw new Error('Should not fetch');
@@ -82,12 +81,10 @@ describe('createTemplateRegistry', () => {
   });
 
   it('should fall back to fetch when no inline template', async () => {
-    const { document, HTMLTemplateElement } = parseHTML(
-      '<!DOCTYPE html><html><body></body></html>'
-    );
+    const window = new Window();
 
-    (globalThis as any).document = document;
-    (globalThis as any).HTMLTemplateElement = HTMLTemplateElement;
+    (globalThis as any).document = window.document;
+    (globalThis as any).HTMLTemplateElement = window.HTMLTemplateElement;
 
     const mockFetch = async () => ({
       ok: true,
@@ -101,12 +98,11 @@ describe('createTemplateRegistry', () => {
   });
 
   it('should fall back to fetch when element is not a template', async () => {
-    const { document, HTMLTemplateElement } = parseHTML(
-      '<!DOCTYPE html><html><body><div id="card">Not a template</div></body></html>'
-    );
+    const window = new Window();
+    window.document.body.innerHTML = '<div id="card">Not a template</div>';
 
-    (globalThis as any).document = document;
-    (globalThis as any).HTMLTemplateElement = HTMLTemplateElement;
+    (globalThis as any).document = window.document;
+    (globalThis as any).HTMLTemplateElement = window.HTMLTemplateElement;
 
     const mockFetch = async () => ({
       ok: true,

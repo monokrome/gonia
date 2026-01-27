@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom/worker';
+import { Window } from 'happy-dom';
 import { processElementDirectives, processElementTree } from '../src/process.js';
 import { Mode } from '../src/types.js';
 import { reactive, createScope } from '../src/reactivity.js';
@@ -12,8 +12,8 @@ describe('processElementDirectives', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   describe('basic directive processing', () => {
@@ -193,8 +193,8 @@ describe('processElementTree', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   describe('recursive processing', () => {
@@ -295,8 +295,8 @@ describe('scope persistence across re-renders', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should maintain scope identity when reusing existingScope', () => {

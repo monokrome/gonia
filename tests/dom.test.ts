@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom/worker';
+import { Window } from 'happy-dom';
 import { findAncestor } from '../src/dom.js';
 import {
   createContextKey,
@@ -18,8 +18,8 @@ describe('findAncestor', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   it('should find ancestor matching predicate', () => {
@@ -138,8 +138,8 @@ describe('Context Registry', () => {
   let document: Document;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
     // No need to clear contexts globally - each test creates new elements
     // and WeakMap automatically frees entries when elements are GC'd
   });

@@ -45,8 +45,8 @@ describe('server render', () => {
       registry
     );
 
-    expect(result).toContain('style="display:"');
-    expect(result).toContain('style="display:none"');
+    expect(result).toContain('>Visible</div>');
+    expect(result).toContain('style="display: none;"');
   });
 
   it('should render html directive', async () => {
@@ -100,7 +100,7 @@ describe('server render', () => {
     );
 
     expect(result).toContain('Alice');
-    expect(result).toContain('style="display:"');
+    expect(result).not.toContain('style="display: none;"');
   });
 
   it('should respect directive priority', async () => {

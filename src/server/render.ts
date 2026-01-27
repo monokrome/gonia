@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { parseHTML } from 'linkedom/worker';
+import { Window } from 'happy-dom';
 import { Mode, Directive, Expression, DirectivePriority, Context, getDirective } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
@@ -165,18 +165,17 @@ export async function render(
   state: Record<string, unknown>,
   registry: DirectiveRegistry
 ): Promise<string> {
-  const { document, MutationObserver } = parseHTML(
-    '<!DOCTYPE html><html><body></body></html>'
-  );
+  const window = new Window();
+  const document = window.document;
 
   const index: IndexedDirective[] = [];
   const selector = getSelector(registry);
 
-  const observer = new MutationObserver((mutations) => {
+  const observer = new window.MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== 1) continue;
-        const el = node as Element;
+        const el = node as unknown as Element;
 
         const matches: Element[] = el.matches(selector) ? [el] : [];
         const descendants = [...el.querySelectorAll(selector)];

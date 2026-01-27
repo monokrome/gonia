@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseHTML } from 'linkedom/worker';
+import { Window } from 'happy-dom';
 import { model } from '../src/directives/model.js';
 import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
@@ -10,8 +10,8 @@ describe('g-model directive', () => {
   let $eval: EvalFn;
 
   beforeEach(() => {
-    const dom = parseHTML('<!DOCTYPE html><html><body></body></html>');
-    document = dom.document;
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   describe('text input (state → element)', () => {
