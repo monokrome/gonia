@@ -207,23 +207,23 @@ describe('gonia vite plugin', () => {
       const code = `
         import { directive } from 'gonia';
 
-        const myDirective = ($element, $state) => {
-          $state.count = 0;
+        const myDirective = ($element, $scope) => {
+          $scope.count = 0;
         };
 
         directive('my-app', myDirective, { scope: true });
       `;
       const result = transform(code);
 
-      expect(result).toContain('myDirective.$inject = ["$element","$state"]');
+      expect(result).toContain('myDirective.$inject = ["$element","$scope"]');
     });
 
     it('should not add $inject if already present', () => {
       const code = `
         import { directive } from 'gonia';
 
-        const myDirective = ($element, $state) => {};
-        myDirective.$inject = ['$element', '$state'];
+        const myDirective = ($element, $scope) => {};
+        myDirective.$inject = ['$element', '$scope'];
 
         directive('my-app', myDirective);
       `;

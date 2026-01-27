@@ -93,7 +93,7 @@ function parseFunctionParams(fn: Function): string[] {
 export interface DependencyResolverConfig {
   /** Resolve a ContextKey to its value */
   resolveContext: (key: ContextKey<unknown>) => unknown;
-  /** Resolve $state injectable */
+  /** Resolve $scope injectable */
   resolveState: () => Record<string, unknown>;
   /** Resolve $rootState injectable (may be same as state) */
   resolveRootState?: () => Record<string, unknown>;
@@ -142,7 +142,7 @@ export function resolveDependencies(
         return element;
       case '$eval':
         return evalFn;
-      case '$state':
+      case '$scope':
         return config.resolveState();
       case '$rootState':
         return config.resolveRootState?.() ?? config.resolveState();

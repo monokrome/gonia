@@ -136,6 +136,11 @@ export function registerDirectiveElement(
       // Create this element's scope
       const scope = createElementScope(this, parentScope);
 
+      // Apply assigned values to scope
+      if (options.assign) {
+        Object.assign(scope, options.assign);
+      }
+
       // Create context for expression evaluation
       const ctx = createContext(Mode.CLIENT, scope);
 

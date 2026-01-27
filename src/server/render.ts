@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { parseHTML } from 'linkedom';
+import { parseHTML } from 'linkedom/worker';
 import { Mode, Directive, Expression, DirectivePriority, Context, getDirective } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
@@ -40,10 +40,26 @@ function getSelector(registry: DirectiveRegistry): string {
     const directiveSelectors = [...registry.keys()].map(n => `[g-${n}]`);
     // Also match native <slot> elements
     directiveSelectors.push('slot');
+    // Match g-scope for inline scope initialization
+    directiveSelectors.push('[g-scope]');
     selector = directiveSelectors.join(',');
     selectorCache.set(registry, selector);
   }
   return selector;
+}
+
+/**
+ * Check if element has any g-bind:* attributes.
+ *
+ * @internal
+ */
+function hasBindAttributes(el: Element): boolean {
+  for (const attr of el.attributes) {
+    if (attr.name.startsWith('g-bind:')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -267,6 +283,28 @@ export async function render(
 
       // Sort directives on this element by priority (higher first)
       directives.sort((a, b) => b.priority - a.priority);
+
+      // Process g-scope first (inline scope initialization)
+      const scopeAttr = el.getAttribute('g-scope');
+      if (scopeAttr) {
+        const scopeValues = ctx.eval<Record<string, unknown>>(scopeAttr as Expression);
+        if (scopeValues && typeof scopeValues === 'object') {
+          Object.assign(state, scopeValues);
+        }
+      }
+
+      // Process g-bind:* attributes (dynamic attribute binding)
+      for (const attr of [...el.attributes]) {
+        if (attr.name.startsWith('g-bind:')) {
+          const targetAttr = attr.name.slice('g-bind:'.length);
+          const value = ctx.eval(attr.value as Expression);
+          if (value === null || value === undefined) {
+            el.removeAttribute(targetAttr);
+          } else {
+            el.setAttribute(targetAttr, String(value));
+          }
+        }
+      }
 
       for (const item of directives) {
         // Check if element was disconnected by a previous directive (e.g., g-for replacing it)

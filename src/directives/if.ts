@@ -56,11 +56,11 @@ function getOrCreateScope(
  * <div g-if="items.length > 0">Has items</div>
  * ```
  */
-export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> = function cif(
+export const cif: Directive<['$expr', '$element', '$eval', '$scope', '$mode']> = function cif(
   $expr: Expression,
   $element: Element,
   $eval: EvalFn,
-  $state: Record<string, unknown>,
+  $scope: Record<string, unknown>,
   $mode: Mode
 ) {
   const parent = $element.parentNode;
@@ -83,7 +83,7 @@ export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> =
       // Process child directives
       $element.removeAttribute('g-if');
       $element.setAttribute(IF_PROCESSED_ATTR, '');
-      processElementTree($element, $state, $mode);
+      processElementTree($element, $scope, $mode);
     }
     return;
   }
@@ -118,7 +118,7 @@ export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> =
   }
 
   // Create persistent scope anchored to the placeholder
-  const persistentScope = getOrCreateScope(placeholder, $state);
+  const persistentScope = getOrCreateScope(placeholder, $scope);
 
   let renderedElement: Element | null = null;
 
@@ -131,7 +131,7 @@ export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> =
         renderedElement.setAttribute(IF_PROCESSED_ATTR, '');
 
         // Process with the persistent scope - state survives across toggles
-        processElementTree(renderedElement, $state, Mode.CLIENT, {
+        processElementTree(renderedElement, $scope, Mode.CLIENT, {
           existingScope: persistentScope
         });
 
@@ -151,7 +151,7 @@ export const cif: Directive<['$expr', '$element', '$eval', '$state', '$mode']> =
   });
 };
 
-cif.$inject = ['$expr', '$element', '$eval', '$state', '$mode'];
+cif.$inject = ['$expr', '$element', '$eval', '$scope', '$mode'];
 cif.priority = DirectivePriority.STRUCTURAL;
 
 directive('g-if', cif);

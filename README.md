@@ -58,17 +58,15 @@ hydrate();
 ```typescript
 import { directive, Directive } from 'gonia';
 
-const myApp: Directive = ($element, $state) => {
-  // Initialize state
-  $state.count = 0;
+const myApp: Directive<['$element', '$scope']> = ($element, $scope) => {
+  // Initialize scope
+  $scope.count = 0;
 
   // Define methods
-  $state.increment = () => {
-    $state.count++;
+  $scope.increment = () => {
+    $scope.count++;
   };
 };
-
-myApp.$inject = ['$element', '$state'];
 
 // Register with scope: true to create isolated state
 directive('my-app', myApp, { scope: true });
@@ -92,6 +90,8 @@ directive('my-app', myApp, { scope: true });
 | `g-class` | Dynamic classes | `<div g-class="{ active: isActive }">` |
 | `g-model` | Two-way binding | `<input g-model="name">` |
 | `g-on` | Event handling | `<button g-on="click: handleClick">` |
+| `g-scope` | Inline scope init | `<div g-scope="{ count: 0 }">` |
+| `g-bind:*` | Dynamic attributes | `<a g-bind:href="link">` |
 
 ## Vite Integration
 
@@ -113,6 +113,23 @@ See the [docs](./docs) folder for detailed documentation:
 - [Directives Reference](./docs/directives.md)
 - [SSR Guide](./docs/ssr.md)
 - [Reactivity](./docs/reactivity.md)
+
+## Roadmap
+
+### Done
+- [x] Core directives (`g-text`, `g-show`, `g-if`, `g-for`, `g-class`, `g-model`, `g-on`, `g-scope`, `g-bind:*`, `g-html`)
+- [x] Directive options (`scope`, `template`, `assign`, `provide`, `using`)
+- [x] SSR with client hydration
+- [x] Vite plugin with `$inject` transformation
+- [x] Typed context registry
+- [x] Persistent scopes for `g-if` toggles
+
+### Planned
+- [ ] Reducer-based two-way bindings (`scope: { prop: '=' }`)
+- [ ] Scoped CSS with automatic class mangling
+- [ ] Async components with suspense boundaries
+- [ ] Browser devtools extension
+- [ ] Transition system for `g-if`/`g-for`
 
 ## License
 

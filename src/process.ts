@@ -122,6 +122,15 @@ export function processElementDirectives(
 
   const ctx = createContext(mode, scope);
 
+  // Process g-scope (inline scope initialization)
+  const scopeAttr = el.getAttribute('g-scope');
+  if (scopeAttr) {
+    const scopeValues = ctx.eval<Record<string, unknown>>(scopeAttr as Expression);
+    if (scopeValues && typeof scopeValues === 'object') {
+      Object.assign(scope, scopeValues);
+    }
+  }
+
   // Process g-text
   const textAttr = el.getAttribute('g-text');
   if (textAttr) {
@@ -214,6 +223,28 @@ export function processElementDirectives(
       effect(applyHtml);
     } else {
       applyHtml();
+    }
+  }
+
+  // Process g-bind:* attributes
+  const bindAttrs = [...el.attributes].filter(a => a.name.startsWith('g-bind:'));
+  for (const attr of bindAttrs) {
+    const targetAttr = attr.name.slice('g-bind:'.length);
+    const valueExpr = attr.value as Expression;
+
+    const applyBinding = () => {
+      const value = ctx.eval(valueExpr);
+      if (value === null || value === undefined) {
+        el.removeAttribute(targetAttr);
+      } else {
+        el.setAttribute(targetAttr, String(value));
+      }
+    };
+
+    if (mode === Mode.CLIENT) {
+      effect(applyBinding);
+    } else {
+      applyBinding();
     }
   }
 

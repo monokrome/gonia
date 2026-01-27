@@ -109,15 +109,15 @@ state.items = ['new', 'array'];
 
 ## Scoped State
 
-In directives, `$state` provides scoped reactive state:
+In directives, `$scope` provides scoped reactive state:
 
 ```typescript
-const myComponent: Directive = ($element, $state) => {
-  // $state is a reactive object scoped to this element
-  $state.count = 0;
+const myComponent: Directive = ($element, $scope) => {
+  // $scope is a reactive object scoped to this element
+  $scope.count = 0;
 
   effect(() => {
-    $element.textContent = String($state.count);
+    $element.textContent = String($scope.count);
   });
 };
 ```
@@ -126,7 +126,7 @@ Child elements inherit parent state through scope chains:
 
 ```typescript
 // Parent directive
-$state.theme = 'dark';
+$scope.theme = 'dark';
 
 // Child can access parent state
 // <child-component g-text="theme"></child-component>

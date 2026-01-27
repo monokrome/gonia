@@ -12,6 +12,7 @@ import { FOR_PROCESSED_ATTR } from '../directives/for.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
 import { resolveDependencies as resolveInjectables, isContextKey } from '../inject.js';
 import { resolveContext, ContextKey } from '../context-registry.js';
+import { effect } from '../reactivity.js';
 
 // Built-in directives
 import { text } from '../directives/text.js';
@@ -84,6 +85,8 @@ function getSelector(registry: DirectiveRegistry): string {
     directiveSelectors.push('slot');
     // Match template placeholders from SSR (g-if with false condition)
     directiveSelectors.push('template[data-g-if]');
+    // Match g-scope for inline scope initialization
+    directiveSelectors.push('[g-scope]');
     cachedSelector = directiveSelectors.join(',');
   }
   return cachedSelector;
@@ -241,9 +244,40 @@ function processElement(
   }
 
   const directives = getDirectivesForElement(el, registry);
-  if (directives.length === 0) return;
+  const hasScopeAttr = el.hasAttribute('g-scope');
+  const hasBindAttrs = [...el.attributes].some(a => a.name.startsWith('g-bind:'));
+
+  // Skip if nothing to process
+  if (directives.length === 0 && !hasScopeAttr && !hasBindAttrs) return;
 
   const ctx = getContextForElement(el);
+  const scope = findParentScope(el, true) ?? {};
+
+  // Process g-scope first (inline scope initialization)
+  if (hasScopeAttr) {
+    const scopeAttr = el.getAttribute('g-scope')!;
+    const scopeValues = ctx.eval<Record<string, unknown>>(scopeAttr as Expression);
+    if (scopeValues && typeof scopeValues === 'object') {
+      Object.assign(scope, scopeValues);
+    }
+  }
+
+  // Process g-bind:* attributes (dynamic attribute binding with reactivity)
+  for (const attr of [...el.attributes]) {
+    if (attr.name.startsWith('g-bind:')) {
+      const targetAttr = attr.name.slice('g-bind:'.length);
+      const valueExpr = attr.value as Expression;
+
+      effect(() => {
+        const value = ctx.eval(valueExpr);
+        if (value === null || value === undefined) {
+          el.removeAttribute(targetAttr);
+        } else {
+          el.setAttribute(targetAttr, String(value));
+        }
+      });
+    }
+  }
 
   // Process directives sequentially, handling async ones properly
   let chain: Promise<void> | undefined;
@@ -432,6 +466,11 @@ async function processDirectiveElements(): Promise<void> {
       if (options.scope) {
         const parentScope = findParentScope(el);
         scope = createElementScope(el, parentScope);
+
+        // Apply assigned values to scope
+        if (options.assign) {
+          Object.assign(scope, options.assign);
+        }
       } else {
         scope = findParentScope(el, true) ?? {};
       }
