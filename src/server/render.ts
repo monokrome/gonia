@@ -282,76 +282,8 @@ export async function render(
     }
   });
 
-  // Check if input is a full HTML document
-  const isFullDocument = /^\s*<!DOCTYPE|^\s*<html/i.test(html);
-
-  if (isFullDocument) {
-    // Parse as full document - use document.write to preserve structure
-    document.open();
-    document.write(html);
-    document.close();
-
-    // For full documents, query elements directly since observer wasn't attached before write
-    const selector = getSelector(registry);
-    const bodyMatches = document.body.matches(selector) ? [document.body] : [];
-    const descendantMatches = [...document.body.querySelectorAll(selector)];
-    for (const match of [...bodyMatches, ...descendantMatches]) {
-      if (match.closest('template')) continue;
-
-      if (match.tagName === 'SLOT') {
-        index.push({
-          el: match as unknown as Element,
-          name: 'slot',
-          directive: null,
-          expr: '' as Expression,
-          priority: DirectivePriority.NORMAL,
-          isNativeSlot: true
-        });
-        continue;
-      }
-
-      if (match.hasAttribute('g-scope')) {
-        let hasDirective = false;
-        for (const [name] of registry) {
-          if (match.hasAttribute(`g-${name}`)) {
-            hasDirective = true;
-            break;
-          }
-        }
-        if (!hasDirective) {
-          index.push({
-            el: match as unknown as Element,
-            name: 'scope',
-            directive: null,
-            expr: '' as Expression,
-            priority: DirectivePriority.STRUCTURAL,
-            isNativeSlot: false
-          });
-        }
-      }
-
-      for (const [name, directive] of registry) {
-        const attr = match.getAttribute(`g-${name}`);
-        if (attr !== null) {
-          const registration = getDirective(`g-${name}`);
-          index.push({
-            el: match as unknown as Element,
-            name,
-            directive,
-            expr: decodeHTMLEntities(attr) as Expression,
-            priority: directive.priority ?? DirectivePriority.NORMAL,
-            using: registration?.options.using
-          });
-        }
-      }
-    }
-
-    // Set up observer for dynamically added elements (e.g., by g-for)
-    observer.observe(document.body, { childList: true, subtree: true });
-  } else {
-    observer.observe(document.body, { childList: true, subtree: true });
-    document.body.innerHTML = html;
-  }
+  observer.observe(document.body, { childList: true, subtree: true });
+  document.body.innerHTML = html;
 
   await new Promise(r => setTimeout(r, 0));
 
@@ -477,14 +409,6 @@ export async function render(
   }
 
   observer.disconnect();
-
-  if (isFullDocument) {
-    // Return full document with DOCTYPE
-    const doctype = document.doctype
-      ? `<!DOCTYPE ${document.doctype.name}>`
-      : '<!DOCTYPE html>';
-    return doctype + document.documentElement.outerHTML;
-  }
 
   return document.body.innerHTML;
 }
