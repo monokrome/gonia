@@ -571,3 +571,100 @@ describe('HTML entity decoding', () => {
     expect(result).toContain('>Hello</span>');
   });
 });
+
+describe('regression tests', () => {
+  it('directives should see g-scope state without $context (issue: getLocalState always created empty state)', async () => {
+    // Bug: getLocalState(el) always created a new empty state, so the
+    // ?? rootState fallback in resolveState never triggered. Directives
+    // got empty {} instead of the root state populated by g-scope.
+    const registry = new Map<string, Directive>();
+
+    const reader: Directive = ($element: Element, $scope: Record<string, unknown>) => {
+      // This directive should see the 'message' from g-scope
+      ($element as HTMLElement).textContent = String($scope.message ?? 'NOT_FOUND');
+    };
+    reader.$inject = ['$element', '$scope'];
+
+    registry.set('reader', reader);
+
+    const result = await render(
+      '<div g-scope="{ message: \'hello from scope\' }"><span g-reader=""></span></div>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('hello from scope');
+    expect(result).not.toContain('NOT_FOUND');
+  });
+
+  it('$context provider scope should be shared with provider registration (issue: different states used)', async () => {
+    // Bug: Directive with $context received rootState as $scope, but
+    // registerProvider used a separate getLocalState(el). The provider
+    // populated rootState, but descendants looked up the empty local state.
+    const registry = new Map<string, Directive>();
+
+    const provider: Directive = ($scope: Record<string, unknown>) => {
+      $scope.theme = 'dark';
+      $scope.color = 'blue';
+    };
+    provider.$inject = ['$scope'];
+    provider.$context = ['settings'];
+
+    const consumer: Directive = ($element: Element, settings: Record<string, unknown>) => {
+      ($element as HTMLElement).textContent = `${settings?.theme ?? 'NO_THEME'}-${settings?.color ?? 'NO_COLOR'}`;
+    };
+    consumer.$inject = ['$element', 'settings'];
+
+    registry.set('provider', provider);
+    registry.set('consumer', consumer);
+
+    const result = await render(
+      '<div g-provider=""><span g-consumer=""></span></div>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('dark-blue');
+    expect(result).not.toContain('NO_THEME');
+    expect(result).not.toContain('NO_COLOR');
+  });
+
+  it('using option should work for ContextKey injection (issue: $inject contained object references)', async () => {
+    // Bug: ContextKey objects in $inject don't survive minification.
+    // The using option must be used for ContextKey-based injection.
+    const { createContextKey, registerContext } = await import('../src/context-registry.js');
+
+    const ConfigContext = createContextKey<{ apiUrl: string }>('Config');
+
+    const registry = new Map<string, Directive>();
+
+    // Provider sets up the context
+    const configProvider: Directive = ($element: Element) => {
+      registerContext($element, ConfigContext, { apiUrl: 'https://api.example.com' });
+    };
+    configProvider.$inject = ['$element'];
+
+    // Consumer uses 'using' option to receive the context
+    const configConsumer: Directive = ($element: Element, config: { apiUrl: string }) => {
+      ($element as HTMLElement).textContent = config?.apiUrl ?? 'NO_CONFIG';
+    };
+    configConsumer.$inject = ['$element'];
+    // Note: 'using' is passed via directive registration, not $inject
+
+    registry.set('configprovider', configProvider);
+    registry.set('configconsumer', configConsumer);
+
+    // Register the consumer with 'using' option
+    const { directive } = await import('../src/types.js');
+    directive('g-configconsumer', configConsumer, { using: [ConfigContext] });
+
+    const result = await render(
+      '<div g-configprovider=""><span g-configconsumer=""></span></div>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('https://api.example.com');
+    expect(result).not.toContain('NO_CONFIG');
+  });
+});
