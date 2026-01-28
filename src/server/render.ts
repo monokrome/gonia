@@ -285,13 +285,26 @@ export async function render(
   };
 
   const observer = new window.MutationObserver((mutations) => {
+    // Collect all direct addedNodes first to avoid processing them as descendants
+    const directNodes = new Set<Element>();
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType === 1) {
+          directNodes.add(node as unknown as Element);
+        }
+      }
+    }
+
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== 1) continue;
         const el = node as unknown as Element;
 
         const matches: Element[] = el.matches(selector) ? [el] : [];
-        const descendants = [...el.querySelectorAll(selector)];
+        // Filter out descendants that will be processed as direct addedNodes
+        const descendants = [...el.querySelectorAll(selector)].filter(
+          desc => !directNodes.has(desc)
+        );
 
         for (const match of [...matches, ...descendants]) {
           // Skip elements inside template content (used as placeholders)
