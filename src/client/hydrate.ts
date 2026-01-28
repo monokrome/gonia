@@ -282,12 +282,16 @@ function processElement(
   let scope = findParentScope(el, true) ?? {};
   let directiveCreatedScope = false;
 
-  // Collect full directive names for conflict detection
-  const directiveFullNames: string[] = [];
+  // Collect unique directive names for conflict detection
+  const directiveNameSet = new Set<string>();
 
   for (const { name } of directives) {
     const fullName = `g-${name}`;
-    directiveFullNames.push(fullName);
+    const isNew = !directiveNameSet.has(fullName);
+    directiveNameSet.add(fullName);
+
+    // Only process first occurrence
+    if (!isNew) continue;
 
     const registration = getDirective(fullName);
     if (!directiveCreatedScope && directiveNeedsScope(fullName)) {
@@ -304,7 +308,7 @@ function processElement(
 
   // Apply assigns with conflict detection
   if (directiveCreatedScope) {
-    applyAssigns(scope, directiveFullNames);
+    applyAssigns(scope, [...directiveNameSet]);
   }
 
   const ctx = createContext(Mode.CLIENT, scope);
@@ -524,17 +528,17 @@ async function processDirectiveElements(): Promise<void> {
         const parentScope = findParentScope(el);
         scope = createElementScope(el, parentScope);
 
-        // Collect all directive names on this element for conflict detection
-        const directiveNames = [name];
+        // Collect unique directive names on this element for conflict detection
+        const directiveNameSet = new Set<string>([name]);
         for (const attr of el.attributes) {
           const attrReg = getDirective(attr.name);
           if (attrReg) {
-            directiveNames.push(attr.name);
+            directiveNameSet.add(attr.name);
           }
         }
 
         // Apply assigns with conflict detection
-        applyAssigns(scope, directiveNames);
+        applyAssigns(scope, [...directiveNameSet]);
       } else {
         scope = findParentScope(el, true) ?? {};
       }

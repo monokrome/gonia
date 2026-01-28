@@ -85,6 +85,22 @@ function getSelector(localRegistry?: DirectiveRegistry): string {
   selectors.push('slot');
   // Match g-scope for inline scope initialization (TODO: make prefix configurable)
   selectors.push('[g-scope]');
+  // Match common g-bind:* attributes for dynamic binding
+  // These need to be indexed so their expressions can be evaluated with proper scope
+  selectors.push('[g-bind\\:class]');
+  selectors.push('[g-bind\\:style]');
+  selectors.push('[g-bind\\:href]');
+  selectors.push('[g-bind\\:src]');
+  selectors.push('[g-bind\\:id]');
+  selectors.push('[g-bind\\:value]');
+  selectors.push('[g-bind\\:disabled]');
+  selectors.push('[g-bind\\:checked]');
+  selectors.push('[g-bind\\:placeholder]');
+  selectors.push('[g-bind\\:title]');
+  selectors.push('[g-bind\\:alt]');
+  selectors.push('[g-bind\\:name]');
+  selectors.push('[g-bind\\:type]');
+  // Note: Can't do wildcard for data-* attributes in CSS, but hasBindAttributes handles them
 
   return selectors.join(',');
 }
@@ -302,6 +318,28 @@ export async function render(
             }
           }
 
+          // Handle g-bind:* elements that don't have other directives
+          // Add a placeholder so they get processed for dynamic attribute binding
+          if (hasBindAttributes(match)) {
+            let hasDirective = false;
+            for (const name of getDirectiveNames()) {
+              if (match.hasAttribute(name)) {
+                hasDirective = true;
+                break;
+              }
+            }
+            if (!hasDirective && !match.hasAttribute('g-scope')) {
+              index.push({
+                el: match,
+                name: 'bind',
+                directive: null,
+                expr: '' as Expression,
+                priority: DirectivePriority.NORMAL,
+                isNativeSlot: false
+              });
+            }
+          }
+
           // Check all registered directives from global registry
           const tagName = match.tagName.toLowerCase();
 
@@ -452,13 +490,14 @@ export async function render(
         }
       }
 
-      // Collect all directive names for conflict detection
-      const directiveNames: string[] = [];
+      // Collect unique directive names for conflict detection
+      const directiveNameSet = new Set<string>();
       for (const item of directives) {
         if (!item.isNativeSlot && item.directive !== null) {
-          directiveNames.push(item.name);
+          directiveNameSet.add(item.name);
         }
       }
+      const directiveNames = [...directiveNameSet];
 
       // Check if any directive needs scope - create once if so
       let elementScope: Record<string, unknown> | null = null;
