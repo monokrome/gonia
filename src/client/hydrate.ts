@@ -4,16 +4,18 @@
  * @packageDocumentation
  */
 
-import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames, TemplateAttrs } from '../types.js';
+import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
-import { getLocalState, registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
+import { getLocalState, registerProvider, registerDIProviders } from '../providers.js';
 import { FOR_PROCESSED_ATTR } from '../directives/for.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
-import { resolveContext, ContextKey } from '../context-registry.js';
+import { ContextKey } from '../context-registry.js';
 import { effect } from '../reactivity.js';
 import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
+import { getTemplateAttrs } from '../template-utils.js';
+import { createClientResolverConfig, ServiceRegistry } from '../resolver-config.js';
 
 // Built-in directives
 import { text } from '../directives/text.js';
@@ -30,10 +32,8 @@ import { cif } from '../directives/if.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type DirectiveRegistry = Map<string, Directive<any>>;
 
-/**
- * Service registry for dependency injection.
- */
-export type ServiceRegistry = Map<string, unknown>;
+// Re-export for backwards compatibility
+export type { ServiceRegistry } from '../resolver-config.js';
 
 /** Cached selector string */
 let cachedSelector: string | null = null;
@@ -208,31 +208,6 @@ export function setElementContext(el: Element, ctx: Context): void {
 }
 
 /**
- * Create resolver config for client-side dependency resolution.
- *
- * @internal
- */
-function createClientResolverConfig(el: Element, ctx: Context) {
-  return {
-    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
-    resolveState: () => findParentScope(el, true) ?? getLocalState(el),
-    resolveCustom: (name: string) => {
-      // Look up in ancestor DI providers first (provide option)
-      const diProvided = resolveFromDIProviders(el, name);
-      if (diProvided !== undefined) return diProvided;
-
-      // Look up in global services registry
-      const service = services.get(name);
-      if (service !== undefined) return service;
-
-      // Look up in ancestor context providers ($context)
-      return resolveFromProviders(el, name);
-    },
-    mode: 'client' as const
-  };
-}
-
-/**
  * Process directives on a single element.
  * Returns a promise if any directive is async, otherwise void.
  * Directives on the same element are processed sequentially to handle dependencies.
@@ -260,7 +235,7 @@ function processElement(
     if (ifDirective) {
       const expr = el.getAttribute('data-g-if') || '';
       const ctx = getContextForElement(el);
-      const config = createClientResolverConfig(el, ctx);
+      const config = createClientResolverConfig(el, () => findParentScope(el, true) ?? getLocalState(el), services);
       const registration = getDirective('g-if');
       const args = resolveInjectables(ifDirective, expr, el, ctx.eval.bind(ctx), config, registration?.options.using);
       const result = (ifDirective as (...args: unknown[]) => void | Promise<void>)(...args);
@@ -345,7 +320,7 @@ function processElement(
 
   for (const { directive, expr, using } of directives) {
     const processDirective = () => {
-      const config = createClientResolverConfig(el, ctx);
+      const config = createClientResolverConfig(el, () => findParentScope(el, true) ?? getLocalState(el), services);
       const args = resolveInjectables(directive, expr, el, ctx.eval.bind(ctx), config, using);
       const result = (directive as (...args: unknown[]) => void | Promise<void>)(...args);
 
@@ -470,23 +445,6 @@ export function registerService(name: string, service: unknown): void {
  * ```
  */
 /**
- * Extract template attributes from an element.
- *
- * @internal
- */
-function getTemplateAttrs(el: Element): TemplateAttrs {
-  const attrs: TemplateAttrs = {
-    children: el.innerHTML
-  };
-
-  for (const attr of el.attributes) {
-    attrs[attr.name] = attr.value;
-  }
-
-  return attrs;
-}
-
-/**
  * Build a selector for custom element directives that need processing.
  *
  * @internal
@@ -576,12 +534,7 @@ async function processDirectiveElements(): Promise<void> {
     // 3. Call directive function if present (initializes state)
     if (fn) {
       const ctx = createContext(Mode.CLIENT, scope);
-
-      const config = {
-        resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
-        resolveState: () => scope,
-        mode: 'client' as const
-      };
+      const config = createClientResolverConfig(el, () => scope, services);
 
       const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using);
       const result = fn(...args);

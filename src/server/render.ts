@@ -5,45 +5,30 @@
  */
 
 import { Window } from 'happy-dom';
-import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames, TemplateAttrs } from '../types.js';
+import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
-import { registerProvider, resolveFromProviders, registerDIProviders, resolveFromDIProviders } from '../providers.js';
+import { registerProvider, registerDIProviders } from '../providers.js';
 import { createElementScope, getElementScope } from '../scope.js';
 import { FOR_PROCESSED_ATTR, FOR_TEMPLATE_ATTR } from '../directives/for.js';
 import { IF_PROCESSED_ATTR } from '../directives/if.js';
 import { PROCESSED_ATTR } from '../process.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
-import { resolveContext, ContextKey } from '../context-registry.js';
+import { ContextKey } from '../context-registry.js';
 import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
-
-/**
- * Decode HTML entities that happy-dom doesn't decode.
- *
- * @internal
- */
-function decodeHTMLEntities(str: string): string {
-  return str
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
-}
+import { getTemplateAttrs, hasBindAttributes, decodeHTMLEntities } from '../template-utils.js';
+import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
 
 /**
  * Registry of directives by name.
  */
 export type DirectiveRegistry = Map<string, Directive>;
 
-/**
- * Service registry for dependency injection.
- */
-export type ServiceRegistry = Map<string, unknown>;
-
 /** Registered services */
 let services: ServiceRegistry = new Map();
+
+// Re-export for backwards compatibility
+export type { ServiceRegistry } from '../resolver-config.js';
 
 /**
  * Build a CSS selector for all registered directives.
@@ -107,37 +92,6 @@ function getSelector(localRegistry?: DirectiveRegistry): string {
 }
 
 /**
- * Get template attributes from an element.
- *
- * @internal
- */
-function getTemplateAttrs(el: Element): TemplateAttrs {
-  const attrs: TemplateAttrs = {
-    children: el.innerHTML
-  };
-
-  for (const attr of el.attributes) {
-    attrs[attr.name] = attr.value;
-  }
-
-  return attrs;
-}
-
-/**
- * Check if element has any g-bind:* attributes.
- *
- * @internal
- */
-function hasBindAttributes(el: Element): boolean {
-  for (const attr of el.attributes) {
-    if (attr.name.startsWith('g-bind:')) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
  * Register a directive in the registry.
  *
  * @param registry - The directive registry
@@ -182,36 +136,6 @@ function findServerScope(el: Element, rootState: Record<string, unknown>): Recor
   }
 
   return rootState;
-}
-
-/**
- * Create resolver config for server-side dependency resolution.
- *
- * @internal
- */
-function createServerResolverConfig(
-  el: Element,
-  scopeState: Record<string, unknown>,
-  rootState: Record<string, unknown>
-) {
-  return {
-    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
-    resolveState: () => scopeState,
-    resolveRootState: () => rootState,
-    resolveCustom: (name: string) => {
-      // Look up in ancestor DI providers first (provide option)
-      const diProvided = resolveFromDIProviders(el, name);
-      if (diProvided !== undefined) return diProvided;
-
-      // Look up in global services registry
-      const service = services.get(name);
-      if (service !== undefined) return service;
-
-      // Look up in ancestor context providers ($context)
-      return resolveFromProviders(el, name);
-    },
-    mode: 'server' as const
-  };
 }
 
 /**
@@ -539,7 +463,7 @@ export async function render(
 
           // Call directive function if present (initializes state)
           if (fn) {
-            const config = createServerResolverConfig(item.el, scopeState, state);
+            const config = createServerResolverConfig(item.el, scopeState, state, services);
             const args = resolveInjectables(fn, item.expr, item.el, ctx.eval.bind(ctx), config, options.using);
             await (fn as (...args: unknown[]) => void | Promise<void>)(...args);
 
@@ -581,7 +505,7 @@ export async function render(
             registerDIProviders(item.el, options.provide);
           }
 
-          const config = createServerResolverConfig(item.el, scopeState, state);
+          const config = createServerResolverConfig(item.el, scopeState, state, services);
           const args = resolveInjectables(item.directive!, item.expr, item.el, ctx.eval.bind(ctx), config, item.using);
           await (item.directive as (...args: unknown[]) => void | Promise<void>)(...args);
 
