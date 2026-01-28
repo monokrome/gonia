@@ -15,6 +15,7 @@ import { IF_PROCESSED_ATTR } from '../directives/if.js';
 import { PROCESSED_ATTR } from '../process.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { resolveContext, ContextKey } from '../context-registry.js';
+import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
 
 /**
  * Decode HTML entities that happy-dom doesn't decode.
@@ -436,15 +437,38 @@ export async function render(
       }
 
       // Process g-bind:* attributes (dynamic attribute binding)
+      // Use the nearest ancestor scope for evaluation
+      const bindScope = findServerScope(el, state);
+      const bindCtx = createContext(Mode.SERVER, bindScope);
       for (const attr of [...el.attributes]) {
         if (attr.name.startsWith('g-bind:')) {
           const targetAttr = attr.name.slice('g-bind:'.length);
-          const value = ctx.eval(decodeHTMLEntities(attr.value) as Expression);
+          const value = bindCtx.eval(decodeHTMLEntities(attr.value) as Expression);
           if (value === null || value === undefined) {
             el.removeAttribute(targetAttr);
           } else {
             el.setAttribute(targetAttr, String(value));
           }
+        }
+      }
+
+      // Collect all directive names for conflict detection
+      const directiveNames: string[] = [];
+      for (const item of directives) {
+        if (!item.isNativeSlot && item.directive !== null) {
+          directiveNames.push(item.name);
+        }
+      }
+
+      // Check if any directive needs scope - create once if so
+      let elementScope: Record<string, unknown> | null = null;
+      for (const name of directiveNames) {
+        if (directiveNeedsScope(name)) {
+          const parentScope = findServerScope(el, state);
+          elementScope = createElementScope(el, parentScope);
+          // Apply all assigns with conflict detection
+          applyAssigns(elementScope, directiveNames);
+          break;
         }
       }
 
@@ -465,26 +489,15 @@ export async function render(
 
           const { fn, options } = registration;
 
-          // 1. Create scope if needed
-          let scopeState: Record<string, unknown>;
-          if (options.scope) {
-            const parentScope = findServerScope(item.el, state);
-            scopeState = createElementScope(item.el, parentScope);
+          // Use pre-created scope or find existing
+          const scopeState = elementScope ?? findServerScope(item.el, state);
 
-            // Apply assigned values to scope
-            if (options.assign) {
-              Object.assign(scopeState, options.assign);
-            }
-          } else {
-            scopeState = findServerScope(item.el, state);
-          }
-
-          // 2. Register DI providers if present
+          // Register DI providers if present
           if (options.provide) {
             registerDIProviders(item.el, options.provide);
           }
 
-          // 3. Call directive function if present (initializes state)
+          // Call directive function if present (initializes state)
           if (fn) {
             const config = createServerResolverConfig(item.el, scopeState, state);
             const args = resolveInjectables(fn, item.expr, item.el, ctx.eval.bind(ctx), config, options.using);
@@ -496,7 +509,7 @@ export async function render(
             }
           }
 
-          // 4. Render template if present
+          // Render template if present
           if (options.template) {
             const attrs = getTemplateAttrs(item.el);
             let html: string;
@@ -514,17 +527,16 @@ export async function render(
           // Placeholder for g-scope - already processed above
           continue;
         } else {
-          // Attribute directive
-          // Determine scope for this directive
-          let scopeState: Record<string, unknown>;
+          // Attribute directive - use pre-created scope or find existing
+          const scopeState = elementScope ?? findServerScope(item.el, state);
 
-          if (item.directive!.$context?.length) {
-            // Directives with $context get their own scope to populate
-            const parentScope = findServerScope(item.el, state);
-            scopeState = createElementScope(item.el, parentScope);
-          } else {
-            // Other directives use nearest ancestor scope or root
-            scopeState = findServerScope(item.el, state);
+          // Get registration options
+          const registration = getDirective(item.name);
+          const options = registration?.options ?? {};
+
+          // Register DI providers if present
+          if (options.provide) {
+            registerDIProviders(item.el, options.provide);
           }
 
           const config = createServerResolverConfig(item.el, scopeState, state);

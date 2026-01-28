@@ -13,6 +13,7 @@ import { findParentScope, createElementScope, getElementScope } from '../scope.j
 import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { resolveContext, ContextKey } from '../context-registry.js';
 import { effect } from '../reactivity.js';
+import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
 
 // Built-in directives
 import { text } from '../directives/text.js';
@@ -77,8 +78,14 @@ function getSelector(registry: DirectiveRegistry): string {
   if (!cachedSelector) {
     const directiveSelectors: string[] = [];
 
+    // Include directives from passed registry
     for (const name of registry.keys()) {
       directiveSelectors.push(`[g-${name}]`);
+    }
+
+    // Include directives from global registry
+    for (const name of getDirectiveNames()) {
+      directiveSelectors.push(`[${name}]`);
     }
 
     // Also match native <slot> elements
@@ -87,6 +94,8 @@ function getSelector(registry: DirectiveRegistry): string {
     directiveSelectors.push('template[data-g-if]');
     // Match g-scope for inline scope initialization
     directiveSelectors.push('[g-scope]');
+    // Match g-bind:* for attribute bindings
+    directiveSelectors.push('[g-bind\\:class]');
     cachedSelector = directiveSelectors.join(',');
   }
   return cachedSelector;
@@ -113,10 +122,10 @@ function getDirectivesForElement(
 ): DirectiveMatch[] {
   const directives: DirectiveMatch[] = [];
 
+  // Check local registry (built-in directives with g- prefix)
   for (const [name, directive] of registry) {
     const attr = el.getAttribute(`g-${name}`);
     if (attr !== null) {
-      // Look up options from the global directive registry
       const registration = getDirective(`g-${name}`);
       directives.push({
         name,
@@ -124,6 +133,25 @@ function getDirectivesForElement(
         expr: attr,
         using: registration?.options.using
       });
+    }
+  }
+
+  // Check global registry (custom directives)
+  for (const name of getDirectiveNames()) {
+    // Skip if already matched via local registry
+    if (directives.some(d => `g-${d.name}` === name)) continue;
+
+    const attr = el.getAttribute(name);
+    if (attr !== null) {
+      const registration = getDirective(name);
+      if (registration?.fn) {
+        directives.push({
+          name: name.replace(/^g-/, ''),
+          directive: registration.fn,
+          expr: attr,
+          using: registration.options.using
+        });
+      }
     }
   }
 
@@ -250,8 +278,37 @@ function processElement(
   // Skip if nothing to process
   if (directives.length === 0 && !hasScopeAttr && !hasBindAttrs) return;
 
-  const ctx = getContextForElement(el);
-  const scope = findParentScope(el, true) ?? {};
+  // Check if any directive needs a scope
+  let scope = findParentScope(el, true) ?? {};
+  let directiveCreatedScope = false;
+
+  // Collect full directive names for conflict detection
+  const directiveFullNames: string[] = [];
+
+  for (const { name } of directives) {
+    const fullName = `g-${name}`;
+    directiveFullNames.push(fullName);
+
+    const registration = getDirective(fullName);
+    if (!directiveCreatedScope && directiveNeedsScope(fullName)) {
+      // Create a new scope that inherits from parent
+      scope = createElementScope(el, scope);
+      directiveCreatedScope = true;
+    }
+
+    // Register DI providers if present
+    if (registration?.options.provide) {
+      registerDIProviders(el, registration.options.provide);
+    }
+  }
+
+  // Apply assigns with conflict detection
+  if (directiveCreatedScope) {
+    applyAssigns(scope, directiveFullNames);
+  }
+
+  const ctx = createContext(Mode.CLIENT, scope);
+  contextCache.set(el, ctx);
 
   // Process g-scope first (inline scope initialization)
   if (hasScopeAttr) {
@@ -467,10 +524,17 @@ async function processDirectiveElements(): Promise<void> {
         const parentScope = findParentScope(el);
         scope = createElementScope(el, parentScope);
 
-        // Apply assigned values to scope
-        if (options.assign) {
-          Object.assign(scope, options.assign);
+        // Collect all directive names on this element for conflict detection
+        const directiveNames = [name];
+        for (const attr of el.attributes) {
+          const attrReg = getDirective(attr.name);
+          if (attrReg) {
+            directiveNames.push(attr.name);
+          }
         }
+
+        // Apply assigns with conflict detection
+        applyAssigns(scope, directiveNames);
       } else {
         scope = findParentScope(el, true) ?? {};
       }
