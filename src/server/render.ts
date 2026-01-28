@@ -1,5 +1,5 @@
 /**
- * Server-side rendering with MutationObserver-based directive indexing.
+ * Server-side rendering with direct tree walking for directive indexing.
  *
  * @packageDocumentation
  */
@@ -87,19 +87,20 @@ function getSelector(localRegistry?: DirectiveRegistry): string {
   selectors.push('[g-scope]');
   // Match common g-bind:* attributes for dynamic binding
   // These need to be indexed so their expressions can be evaluated with proper scope
-  selectors.push('[g-bind\\:class]');
-  selectors.push('[g-bind\\:style]');
-  selectors.push('[g-bind\\:href]');
-  selectors.push('[g-bind\\:src]');
-  selectors.push('[g-bind\\:id]');
-  selectors.push('[g-bind\\:value]');
-  selectors.push('[g-bind\\:disabled]');
-  selectors.push('[g-bind\\:checked]');
-  selectors.push('[g-bind\\:placeholder]');
-  selectors.push('[g-bind\\:title]');
-  selectors.push('[g-bind\\:alt]');
-  selectors.push('[g-bind\\:name]');
-  selectors.push('[g-bind\\:type]');
+  // Note: happy-dom doesn't need colon escaping (and escaped colons don't work)
+  selectors.push('[g-bind:class]');
+  selectors.push('[g-bind:style]');
+  selectors.push('[g-bind:href]');
+  selectors.push('[g-bind:src]');
+  selectors.push('[g-bind:id]');
+  selectors.push('[g-bind:value]');
+  selectors.push('[g-bind:disabled]');
+  selectors.push('[g-bind:checked]');
+  selectors.push('[g-bind:placeholder]');
+  selectors.push('[g-bind:title]');
+  selectors.push('[g-bind:alt]');
+  selectors.push('[g-bind:name]');
+  selectors.push('[g-bind:type]');
   // Note: Can't do wildcard for data-* attributes in CSS, but hasBindAttributes handles them
 
   return selectors.join(',');
@@ -233,8 +234,8 @@ interface IndexedDirective {
  * Render HTML with directives on the server.
  *
  * @remarks
- * Uses MutationObserver to index elements with directive attributes
- * as they are parsed, then executes directives to produce the final HTML.
+ * Uses direct tree walking to index elements with directive attributes,
+ * then executes directives to produce the final HTML.
  * Directive attributes are preserved in output for client hydration.
  * Directives are processed in tree order (parents before children),
  * with priority used only for multiple directives on the same element.
@@ -266,174 +267,143 @@ export async function render(
   const document = window.document;
 
   const index: IndexedDirective[] = [];
-  const indexedDirectives = new Map<Element, Set<string>>(); // Track indexed (element, directive) pairs
+  const indexed = new Set<Element>(); // Track which elements have been indexed
   const selector = getSelector(registry);
 
-  // Helper to add to index only if not already indexed for this (element, directive) pair
-  const addToIndex = (item: IndexedDirective): boolean => {
-    const existing = indexedDirectives.get(item.el);
-    if (existing?.has(item.name)) {
-      return false; // Already indexed
-    }
-    if (!existing) {
-      indexedDirectives.set(item.el, new Set([item.name]));
-    } else {
-      existing.add(item.name);
-    }
-    index.push(item);
-    return true;
-  };
+  /**
+   * Index all directive elements in a subtree.
+   * Called after innerHTML is set to discover new elements.
+   */
+  function indexTree(root: Element): void {
+    // Get all matching elements in the subtree
+    const elements = root.querySelectorAll(selector);
 
-  const observer = new window.MutationObserver((mutations) => {
-    // Collect all direct addedNodes first to avoid processing them as descendants
-    const directNodes = new Set<Element>();
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (node.nodeType === 1) {
-          directNodes.add(node as unknown as Element);
+    for (const match of elements) {
+      // Skip if already indexed
+      if (indexed.has(match)) continue;
+      indexed.add(match);
+
+      // Skip elements inside template content (used as placeholders)
+      if (match.closest('template')) {
+        continue;
+      }
+
+      // Handle native <slot> elements
+      if (match.tagName === 'SLOT') {
+        index.push({
+          el: match,
+          name: 'slot',
+          directive: null,
+          expr: '' as Expression,
+          priority: DirectivePriority.NORMAL,
+          isNativeSlot: true
+        });
+        continue;
+      }
+
+      // Handle g-scope elements that don't have other directives
+      if (match.hasAttribute('g-scope')) {
+        let hasDirective = false;
+        for (const name of getDirectiveNames()) {
+          if (match.hasAttribute(name)) {
+            hasDirective = true;
+            break;
+          }
+        }
+        if (!hasDirective) {
+          index.push({
+            el: match,
+            name: 'scope',
+            directive: null,
+            expr: '' as Expression,
+            priority: DirectivePriority.STRUCTURAL,
+            isNativeSlot: false
+          });
         }
       }
-    }
 
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (node.nodeType !== 1) continue;
-        const el = node as unknown as Element;
-
-        const matches: Element[] = el.matches(selector) ? [el] : [];
-        // Filter out descendants that will be processed as direct addedNodes
-        const descendants = [...el.querySelectorAll(selector)].filter(
-          desc => !directNodes.has(desc)
-        );
-
-        for (const match of [...matches, ...descendants]) {
-          // Skip elements inside template content (used as placeholders)
-          if (match.closest('template')) {
-            continue;
+      // Handle g-bind:* elements that don't have other directives
+      if (hasBindAttributes(match)) {
+        let hasDirective = false;
+        for (const name of getDirectiveNames()) {
+          if (match.hasAttribute(name)) {
+            hasDirective = true;
+            break;
           }
+        }
+        if (!hasDirective && !match.hasAttribute('g-scope')) {
+          index.push({
+            el: match,
+            name: 'bind',
+            directive: null,
+            expr: '' as Expression,
+            priority: DirectivePriority.NORMAL,
+            isNativeSlot: false
+          });
+        }
+      }
 
-          // Handle native <slot> elements
-          if (match.tagName === 'SLOT') {
-            addToIndex({
+      // Check all registered directives from global registry
+      const tagName = match.tagName.toLowerCase();
+
+      for (const name of getDirectiveNames()) {
+        const registration = getDirective(name);
+        if (!registration) continue;
+
+        const { fn, options } = registration;
+
+        // Check if this is a custom element directive (tag name matches)
+        if (tagName === name) {
+          if (options.template || options.scope || options.provide || options.using) {
+            index.push({
               el: match,
-              name: 'slot',
-              directive: null,
+              name,
+              directive: fn,
               expr: '' as Expression,
-              priority: DirectivePriority.NORMAL,
-              isNativeSlot: true
+              priority: fn?.priority ?? DirectivePriority.TEMPLATE,
+              isCustomElement: true,
+              using: options.using
             });
-            continue;
           }
+        }
 
-          // Handle g-scope elements that don't have other directives
-          // Add a placeholder entry so they get processed
-          if (match.hasAttribute('g-scope')) {
-            let hasDirective = false;
-            for (const name of getDirectiveNames()) {
-              if (match.hasAttribute(name)) {
-                hasDirective = true;
-                break;
-              }
-            }
-            if (!hasDirective) {
-              addToIndex({
-                el: match,
-                name: 'scope',
-                directive: null,
-                expr: '' as Expression,
-                priority: DirectivePriority.STRUCTURAL,
-                isNativeSlot: false
-              });
-            }
-          }
+        // Check if this is an attribute directive
+        const attr = match.getAttribute(name);
+        if (attr !== null) {
+          index.push({
+            el: match,
+            name,
+            directive: fn,
+            expr: decodeHTMLEntities(attr) as Expression,
+            priority: fn?.priority ?? DirectivePriority.NORMAL,
+            using: options.using
+          });
+        }
+      }
 
-          // Handle g-bind:* elements that don't have other directives
-          // Add a placeholder so they get processed for dynamic attribute binding
-          if (hasBindAttributes(match)) {
-            let hasDirective = false;
-            for (const name of getDirectiveNames()) {
-              if (match.hasAttribute(name)) {
-                hasDirective = true;
-                break;
-              }
-            }
-            if (!hasDirective && !match.hasAttribute('g-scope')) {
-              addToIndex({
-                el: match,
-                name: 'bind',
-                directive: null,
-                expr: '' as Expression,
-                priority: DirectivePriority.NORMAL,
-                isNativeSlot: false
-              });
-            }
-          }
+      // Also check local registry for backward compatibility
+      for (const [name, directive] of registry) {
+        const attr = match.getAttribute(`g-${name}`);
+        if (attr !== null) {
+          // Skip if already added from global registry
+          const fullName = `g-${name}`;
+          if (getDirective(fullName)) continue;
 
-          // Check all registered directives from global registry
-          const tagName = match.tagName.toLowerCase();
-
-          for (const name of getDirectiveNames()) {
-            const registration = getDirective(name);
-            if (!registration) continue;
-
-            const { fn, options } = registration;
-
-            // Check if this is a custom element directive (tag name matches)
-            if (tagName === name) {
-              if (options.template || options.scope || options.provide || options.using) {
-                addToIndex({
-                  el: match,
-                  name,
-                  directive: fn,
-                  expr: '' as Expression,
-                  priority: fn?.priority ?? DirectivePriority.TEMPLATE,
-                  isCustomElement: true,
-                  using: options.using
-                });
-              }
-            }
-
-            // Check if this is an attribute directive
-            const attr = match.getAttribute(name);
-            if (attr !== null) {
-              addToIndex({
-                el: match,
-                name,
-                directive: fn,
-                expr: decodeHTMLEntities(attr) as Expression,
-                priority: fn?.priority ?? DirectivePriority.NORMAL,
-                using: options.using
-              });
-            }
-          }
-
-          // Also check local registry for backward compatibility
-          // Local registry uses short names with g- prefix
-          for (const [name, directive] of registry) {
-            const attr = match.getAttribute(`g-${name}`);
-            if (attr !== null) {
-              // Skip if already added from global registry
-              const fullName = `g-${name}`;
-              if (getDirective(fullName)) continue;
-
-              addToIndex({
-                el: match,
-                name,
-                directive,
-                expr: decodeHTMLEntities(attr) as Expression,
-                priority: directive.priority ?? DirectivePriority.NORMAL
-              });
-            }
-          }
+          index.push({
+            el: match,
+            name,
+            directive,
+            expr: decodeHTMLEntities(attr) as Expression,
+            priority: directive.priority ?? DirectivePriority.NORMAL
+          });
         }
       }
     }
-  });
+  }
 
-  observer.observe(document.body, { childList: true, subtree: true });
+  // Set HTML and index initial tree
   document.body.innerHTML = html;
-
-  await new Promise(r => setTimeout(r, 0));
+  indexTree(document.body);
 
   const ctx = createContext(Mode.SERVER, state);
   const processed = new Set<Element>();
@@ -580,16 +550,18 @@ export async function render(
           // Render template if present
           if (options.template) {
             const attrs = getTemplateAttrs(item.el);
-            let html: string;
+            let templateHtml: string;
 
             if (typeof options.template === 'string') {
-              html = options.template;
+              templateHtml = options.template;
             } else {
               const result = options.template(attrs, item.el);
-              html = result instanceof Promise ? await result : result;
+              templateHtml = result instanceof Promise ? await result : result;
             }
 
-            item.el.innerHTML = html;
+            item.el.innerHTML = templateHtml;
+            // Index new elements from the template
+            indexTree(item.el);
           }
         } else if (item.directive === null) {
           // Placeholder for g-scope - already processed above
@@ -617,13 +589,11 @@ export async function render(
           }
         }
       }
-
-      // Let observer catch new elements
-      await new Promise(r => setTimeout(r, 0));
     }
-  }
 
-  observer.disconnect();
+    // Re-index tree to catch elements added by directives (e.g., g-template)
+    indexTree(document.body);
+  }
 
   return document.body.innerHTML;
 }
