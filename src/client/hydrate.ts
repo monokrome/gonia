@@ -15,6 +15,7 @@ import { ContextKey } from '../context-registry.js';
 import { effect } from '../reactivity.js';
 import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
 import { getTemplateAttrs } from '../template-utils.js';
+import { applyBindValue, getBindAttributes } from '../bind-utils.js';
 import { createClientResolverConfig, ServiceRegistry } from '../resolver-config.js';
 
 // Built-in directives
@@ -299,20 +300,11 @@ function processElement(
   }
 
   // Process g-bind:* attributes (dynamic attribute binding with reactivity)
-  for (const attr of [...el.attributes]) {
-    if (attr.name.startsWith('g-bind:')) {
-      const targetAttr = attr.name.slice('g-bind:'.length);
-      const valueExpr = attr.value as Expression;
-
-      effect(() => {
-        const value = ctx.eval(valueExpr);
-        if (value === null || value === undefined) {
-          el.removeAttribute(targetAttr);
-        } else {
-          el.setAttribute(targetAttr, String(value));
-        }
-      });
-    }
+  for (const [targetAttr, valueExpr] of getBindAttributes(el)) {
+    effect(() => {
+      const value = ctx.eval(valueExpr);
+      applyBindValue(el, targetAttr, value);
+    });
   }
 
   // Process directives sequentially, handling async ones properly

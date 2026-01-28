@@ -17,6 +17,7 @@ import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { ContextKey } from '../context-registry.js';
 import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
 import { getTemplateAttrs, hasBindAttributes, decodeHTMLEntities } from '../template-utils.js';
+import { processBindAttributesOnce } from '../bind-utils.js';
 import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
 
 /**
@@ -424,17 +425,7 @@ export async function render(
       }
 
       // Process g-bind:* attributes (dynamic attribute binding)
-      for (const attr of [...el.attributes]) {
-        if (attr.name.startsWith('g-bind:')) {
-          const targetAttr = attr.name.slice('g-bind:'.length);
-          const value = scopeCtx.eval(decodeHTMLEntities(attr.value) as Expression);
-          if (value === null || value === undefined) {
-            el.removeAttribute(targetAttr);
-          } else {
-            el.setAttribute(targetAttr, String(value));
-          }
-        }
-      }
+      processBindAttributesOnce(el, scopeCtx, true);
 
       for (const item of directives) {
         // Check if element was disconnected by a previous directive (e.g., g-for replacing it)
