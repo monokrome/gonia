@@ -464,31 +464,6 @@ export async function render(
       // Sort directives on this element by priority (higher first)
       directives.sort((a, b) => b.priority - a.priority);
 
-      // Process g-scope first (inline scope initialization)
-      const scopeAttr = el.getAttribute('g-scope');
-      if (scopeAttr) {
-        const scopeValues = ctx.eval<Record<string, unknown>>(decodeHTMLEntities(scopeAttr) as Expression);
-        if (scopeValues && typeof scopeValues === 'object') {
-          Object.assign(state, scopeValues);
-        }
-      }
-
-      // Process g-bind:* attributes (dynamic attribute binding)
-      // Use the nearest ancestor scope for evaluation
-      const bindScope = findServerScope(el, state);
-      const bindCtx = createContext(Mode.SERVER, bindScope);
-      for (const attr of [...el.attributes]) {
-        if (attr.name.startsWith('g-bind:')) {
-          const targetAttr = attr.name.slice('g-bind:'.length);
-          const value = bindCtx.eval(decodeHTMLEntities(attr.value) as Expression);
-          if (value === null || value === undefined) {
-            el.removeAttribute(targetAttr);
-          } else {
-            el.setAttribute(targetAttr, String(value));
-          }
-        }
-      }
-
       // Collect unique directive names for conflict detection
       const directiveNameSet = new Set<string>();
       for (const item of directives) {
@@ -499,6 +474,7 @@ export async function render(
       const directiveNames = [...directiveNameSet];
 
       // Check if any directive needs scope - create once if so
+      // Must happen BEFORE g-scope and g-bind so assigns are available
       let elementScope: Record<string, unknown> | null = null;
       for (const name of directiveNames) {
         if (directiveNeedsScope(name)) {
@@ -507,6 +483,32 @@ export async function render(
           // Apply all assigns with conflict detection
           applyAssigns(elementScope, directiveNames);
           break;
+        }
+      }
+
+      // Use element scope if created, otherwise find nearest ancestor
+      const scopeState = elementScope ?? findServerScope(el, state);
+      const scopeCtx = createContext(Mode.SERVER, scopeState);
+
+      // Process g-scope (inline scope initialization)
+      const scopeAttr = el.getAttribute('g-scope');
+      if (scopeAttr) {
+        const scopeValues = scopeCtx.eval<Record<string, unknown>>(decodeHTMLEntities(scopeAttr) as Expression);
+        if (scopeValues && typeof scopeValues === 'object') {
+          Object.assign(scopeState, scopeValues);
+        }
+      }
+
+      // Process g-bind:* attributes (dynamic attribute binding)
+      for (const attr of [...el.attributes]) {
+        if (attr.name.startsWith('g-bind:')) {
+          const targetAttr = attr.name.slice('g-bind:'.length);
+          const value = scopeCtx.eval(decodeHTMLEntities(attr.value) as Expression);
+          if (value === null || value === undefined) {
+            el.removeAttribute(targetAttr);
+          } else {
+            el.setAttribute(targetAttr, String(value));
+          }
         }
       }
 
