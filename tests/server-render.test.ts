@@ -771,3 +771,62 @@ describe('custom element directives', () => {
     clearDirectives();
   });
 });
+
+describe('directive deduplication', () => {
+  it('should not throw on directive with assign when mutation observer fires', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+
+    // Register a custom element directive with assign (triggers conflict detection)
+    // If the mutation observer indexed this element multiple times, the conflict
+    // detection would throw "Conflicting assign key at same priority"
+    directive('test-assign', null, {
+      scope: true,
+      assign: { $styles: { container: 'test-class' } },
+      template: '<div class="body-content">Rendered</div>'
+    });
+
+    const registry = new Map<string, Directive>();
+
+    // This should not throw - previously caused "test-assign, test-assign, test-assign" conflicts
+    const result = await render(
+      '<test-assign></test-assign>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('body-content');
+    expect(result).toContain('Rendered');
+
+    clearDirectives();
+  });
+
+  it('should handle multiple custom elements with assigns', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+
+    directive('comp-a', null, {
+      scope: true,
+      assign: { valueA: 'a' },
+      template: '<div class="comp-a">A</div>'
+    });
+
+    directive('comp-b', null, {
+      scope: true,
+      assign: { valueB: 'b' },
+      template: '<div class="comp-b">B</div>'
+    });
+
+    const registry = new Map<string, Directive>();
+
+    // Multiple custom elements with assigns should each be processed once
+    const result = await render(
+      '<comp-a></comp-a><comp-b></comp-b>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('class="comp-a"');
+    expect(result).toContain('class="comp-b"');
+
+    clearDirectives();
+  });
+});

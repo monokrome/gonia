@@ -266,7 +266,23 @@ export async function render(
   const document = window.document;
 
   const index: IndexedDirective[] = [];
+  const indexedDirectives = new Map<Element, Set<string>>(); // Track indexed (element, directive) pairs
   const selector = getSelector(registry);
+
+  // Helper to add to index only if not already indexed for this (element, directive) pair
+  const addToIndex = (item: IndexedDirective): boolean => {
+    const existing = indexedDirectives.get(item.el);
+    if (existing?.has(item.name)) {
+      return false; // Already indexed
+    }
+    if (!existing) {
+      indexedDirectives.set(item.el, new Set([item.name]));
+    } else {
+      existing.add(item.name);
+    }
+    index.push(item);
+    return true;
+  };
 
   const observer = new window.MutationObserver((mutations) => {
     for (const mutation of mutations) {
@@ -285,7 +301,7 @@ export async function render(
 
           // Handle native <slot> elements
           if (match.tagName === 'SLOT') {
-            index.push({
+            addToIndex({
               el: match,
               name: 'slot',
               directive: null,
@@ -307,7 +323,7 @@ export async function render(
               }
             }
             if (!hasDirective) {
-              index.push({
+              addToIndex({
                 el: match,
                 name: 'scope',
                 directive: null,
@@ -329,7 +345,7 @@ export async function render(
               }
             }
             if (!hasDirective && !match.hasAttribute('g-scope')) {
-              index.push({
+              addToIndex({
                 el: match,
                 name: 'bind',
                 directive: null,
@@ -352,7 +368,7 @@ export async function render(
             // Check if this is a custom element directive (tag name matches)
             if (tagName === name) {
               if (options.template || options.scope || options.provide || options.using) {
-                index.push({
+                addToIndex({
                   el: match,
                   name,
                   directive: fn,
@@ -367,7 +383,7 @@ export async function render(
             // Check if this is an attribute directive
             const attr = match.getAttribute(name);
             if (attr !== null) {
-              index.push({
+              addToIndex({
                 el: match,
                 name,
                 directive: fn,
@@ -387,7 +403,7 @@ export async function render(
               const fullName = `g-${name}`;
               if (getDirective(fullName)) continue;
 
-              index.push({
+              addToIndex({
                 el: match,
                 name,
                 directive,
