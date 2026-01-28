@@ -274,7 +274,7 @@ export async function render(
    * Index all directive elements in a subtree.
    * Called after innerHTML is set to discover new elements.
    */
-  function indexTree(root: Element): void {
+  function indexTree(root: { querySelectorAll(selector: string): NodeListOf<Element> }): void {
     // Get all matching elements in the subtree
     const elements = root.querySelectorAll(selector);
 

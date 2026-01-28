@@ -487,9 +487,35 @@ function getTemplateAttrs(el: Element): TemplateAttrs {
 }
 
 /**
+ * Build a selector for custom element directives that need processing.
+ *
+ * @internal
+ */
+function getCustomElementSelector(): string {
+  const selectors: string[] = [];
+
+  for (const name of getDirectiveNames()) {
+    const registration = getDirective(name);
+    if (!registration) continue;
+
+    const { options } = registration;
+
+    // Only include directives with templates, scope, provide, or using
+    if (options.template || options.scope || options.provide || options.using) {
+      selectors.push(name);
+    }
+  }
+
+  return selectors.join(',');
+}
+
+/**
  * Process custom element directives (those with templates).
  * Directives with templates are web components and must be processed before
  * attribute directives so their content is rendered first.
+ *
+ * Elements are processed in document order (parents before children) to ensure
+ * parent scopes are initialized before child expressions are evaluated.
  *
  * Order for each element:
  * 1. Create scope (if scope: true)
@@ -500,7 +526,20 @@ function getTemplateAttrs(el: Element): TemplateAttrs {
  * @internal
  */
 async function processDirectiveElements(): Promise<void> {
-  for (const name of getDirectiveNames()) {
+  const selector = getCustomElementSelector();
+  if (!selector) return;
+
+  // Get all custom elements in document order (parents before children)
+  const elements = document.querySelectorAll(selector);
+
+  for (const el of elements) {
+    // Skip if already processed
+    if (getElementScope(el)) {
+      continue;
+    }
+
+    // Find the directive registration for this element
+    const name = el.tagName.toLowerCase();
     const registration = getDirective(name);
     if (!registration) {
       continue;
@@ -508,78 +547,63 @@ async function processDirectiveElements(): Promise<void> {
 
     const { fn, options } = registration;
 
-    // Only process directives with templates (web components),
-    // scope: true, provide (DI overrides), or using (context dependencies)
-    if (!options.template && !options.scope && !options.provide && !options.using) {
-      continue;
+    // 1. Create scope if needed
+    let scope: Record<string, unknown> = {};
+    if (options.scope) {
+      const parentScope = findParentScope(el);
+      scope = createElementScope(el, parentScope);
+
+      // Collect unique directive names on this element for conflict detection
+      const directiveNameSet = new Set<string>([name]);
+      for (const attr of el.attributes) {
+        const attrReg = getDirective(attr.name);
+        if (attrReg) {
+          directiveNameSet.add(attr.name);
+        }
+      }
+
+      // Apply assigns with conflict detection
+      applyAssigns(scope, [...directiveNameSet]);
+    } else {
+      scope = findParentScope(el, true) ?? {};
     }
 
-    // Find all elements matching this directive's tag name
-    const elements = document.querySelectorAll(name);
-    for (const el of elements) {
-      // Skip if already processed
-      if (getElementScope(el)) {
-        continue;
+    // 2. Register DI providers if present (for descendants)
+    if (options.provide) {
+      registerDIProviders(el, options.provide);
+    }
+
+    // 3. Call directive function if present (initializes state)
+    if (fn) {
+      const ctx = createContext(Mode.CLIENT, scope);
+
+      const config = {
+        resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
+        resolveState: () => scope,
+        mode: 'client' as const
+      };
+
+      const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using);
+      const result = fn(...args);
+
+      if (result instanceof Promise) {
+        await result;
       }
+    }
 
-      // 1. Create scope if needed
-      let scope: Record<string, unknown> = {};
-      if (options.scope) {
-        const parentScope = findParentScope(el);
-        scope = createElementScope(el, parentScope);
+    // 4. Render template if present (can query DOM for <template> elements etc)
+    if (options.template) {
+      const attrs = getTemplateAttrs(el);
+      let html: string;
 
-        // Collect unique directive names on this element for conflict detection
-        const directiveNameSet = new Set<string>([name]);
-        for (const attr of el.attributes) {
-          const attrReg = getDirective(attr.name);
-          if (attrReg) {
-            directiveNameSet.add(attr.name);
-          }
-        }
-
-        // Apply assigns with conflict detection
-        applyAssigns(scope, [...directiveNameSet]);
+      if (typeof options.template === 'string') {
+        html = options.template;
       } else {
-        scope = findParentScope(el, true) ?? {};
+        const result = options.template(attrs, el);
+        html = result instanceof Promise ? await result : result;
       }
 
-      // 2. Register DI providers if present (for descendants)
-      if (options.provide) {
-        registerDIProviders(el, options.provide);
-      }
-
-      // 3. Call directive function if present (initializes state)
-      if (fn) {
-        const ctx = createContext(Mode.CLIENT, scope);
-
-        const config = {
-          resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
-          resolveState: () => scope,
-          mode: 'client' as const
-        };
-
-        const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using);
-        const result = fn(...args);
-
-        if (result instanceof Promise) {
-          await result;
-        }
-      }
-
-      // 4. Render template if present (can query DOM for <template> elements etc)
-      if (options.template) {
-        const attrs = getTemplateAttrs(el);
-        let html: string;
-
-        if (typeof options.template === 'string') {
-          html = options.template;
-        } else {
-          const result = options.template(attrs, el);
-          html = result instanceof Promise ? await result : result;
-        }
-
-        el.innerHTML = html;
-      }
+      el.innerHTML = html;
     }
   }
 }
