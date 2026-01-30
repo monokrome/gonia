@@ -77,10 +77,7 @@ describe('g-model directive', () => {
     });
   });
 
-  // Note: Select tests are skipped because linkedom's HTMLSelectElement.value
-  // is read-only, which is a limitation of the testing environment.
-  // These would work in a real browser.
-  describe.skip('select (state → element)', () => {
+  describe('select (state → element)', () => {
     it('should set select value from state', () => {
       const state = reactive({ selected: 'b' });
       const ctx = createContext(Mode.CLIENT, state);
@@ -196,7 +193,4 @@ describe('g-model directive', () => {
     });
   });
 
-  // Note: Tests for element → state (user input updating state) are limited
-  // in linkedom because dispatchEvent doesn't work properly with custom events.
-  // These would be fully tested in a real browser environment.
 });
