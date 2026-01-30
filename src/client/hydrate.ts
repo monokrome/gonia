@@ -541,17 +541,21 @@ async function processDirectiveElements(): Promise<void> {
 
     // 4. Render template if present (can query DOM for <template> elements etc)
     if (options.template) {
-      const attrs = getTemplateAttrs(el);
-      let html: string;
-
-      if (typeof options.template === 'string') {
-        html = options.template;
+      if (el.hasAttribute('data-g-prerendered')) {
+        el.removeAttribute('data-g-prerendered');
       } else {
-        const result = options.template(attrs, el);
-        html = result instanceof Promise ? await result : result;
-      }
+        const attrs = getTemplateAttrs(el);
+        let html: string;
 
-      el.innerHTML = html;
+        if (typeof options.template === 'string') {
+          html = options.template;
+        } else {
+          const result = options.template(attrs, el);
+          html = result instanceof Promise ? await result : result;
+        }
+
+        el.innerHTML = html;
+      }
     }
   }
 }

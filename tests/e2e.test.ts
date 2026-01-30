@@ -337,6 +337,103 @@ describe('E2E: Hydration preserves SSR content', () => {
     expect(p.style.display).toBe('none');
   });
 
+  it('should not re-render SSR template during hydration (child references survive)', async () => {
+    // Register a directive with a template
+    const handler: Directive = ($scope: Record<string, unknown>) => {
+      $scope.label = 'Hello';
+    };
+    handler.$inject = ['$scope'];
+    directive('my-widget', handler, {
+      scope: true,
+      template: '<span g-text="label"></span>',
+    });
+
+    // Server renders the template into the element
+    const ssrHtml = await render(
+      '<my-widget></my-widget>',
+      {},
+      serverRegistry
+    );
+
+    // SSR output should contain the rendered template and the marker
+    expect(ssrHtml).toContain('data-g-prerendered');
+    expect(ssrHtml).toContain('<span');
+
+    // Simulate browser parsing SSR output
+    document.body.innerHTML = ssrHtml;
+
+    // Grab a reference to the child span BEFORE hydration
+    const spanBefore = document.querySelector('my-widget span')!;
+    expect(spanBefore).toBeTruthy();
+
+    // Hydrate
+    await init();
+    await new Promise(r => setTimeout(r, 10));
+
+    // The same DOM node should still be in the tree (not replaced by innerHTML)
+    const spanAfter = document.querySelector('my-widget span')!;
+    expect(spanAfter).toBe(spanBefore);
+
+    // The SSR marker should be removed
+    const widget = document.querySelector('my-widget')!;
+    expect(widget.hasAttribute('data-g-prerendered')).toBe(false);
+  });
+
+  it('should remove data-g-prerendered before bindings run', async () => {
+    const handler: Directive = ($scope: Record<string, unknown>) => {
+      $scope.label = 'Bound';
+      $scope.highlighted = true;
+    };
+    handler.$inject = ['$scope'];
+    directive('bound-widget', handler, {
+      scope: true,
+      template: '<span g-text="label" g-class="{ active: highlighted }"></span>',
+    });
+
+    const ssrHtml = await render(
+      '<bound-widget></bound-widget>',
+      {},
+      serverRegistry
+    );
+
+    expect(ssrHtml).toContain('data-g-prerendered');
+
+    document.body.innerHTML = ssrHtml;
+
+    await init();
+    await new Promise(r => setTimeout(r, 10));
+
+    // Marker must be gone after hydration
+    const widget = document.querySelector('bound-widget')!;
+    expect(widget.hasAttribute('data-g-prerendered')).toBe(false);
+
+    // Bindings should still have been applied to the preserved DOM
+    const span = widget.querySelector('span')!;
+    expect(span.textContent).toBe('Bound');
+    expect(span.classList.contains('active')).toBe(true);
+  });
+
+  it('should render template normally for client-only (no SSR)', async () => {
+    const handler: Directive = ($scope: Record<string, unknown>) => {
+      $scope.label = 'Client';
+    };
+    handler.$inject = ['$scope'];
+    directive('client-widget', handler, {
+      scope: true,
+      template: '<span g-text="label"></span>',
+    });
+
+    // No SSR — element starts empty, no data-g-prerendered marker
+    document.body.innerHTML = '<client-widget></client-widget>';
+
+    await init();
+    await new Promise(r => setTimeout(r, 10));
+
+    const span = document.querySelector('client-widget span')!;
+    expect(span).toBeTruthy();
+    expect(span.textContent).toBe('Client');
+  });
+
   it('should preserve g-class classes from SSR', async () => {
     const ssrHtml = await render(
       '<button g-class="{ active: isActive }">Click</button>',

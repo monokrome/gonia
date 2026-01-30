@@ -478,6 +478,7 @@ export async function render(
             }
 
             item.el.innerHTML = templateHtml;
+            item.el.setAttribute('data-g-prerendered', 'true');
             // Index new elements from the template
             indexTree(item.el);
           }
