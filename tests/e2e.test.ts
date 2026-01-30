@@ -6,29 +6,27 @@
  * 2. Browser parses the HTML
  * 3. Client hydrates the DOM
  * 4. Reactive updates work correctly
- *
- * @vitest-environment jsdom
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, registerDirective as registerServerDirective } from '../src/server/render.js';
-import { init } from '../src/client/hydrate.js';
-import { directive, clearDirectives, Directive, Mode } from '../src/types.js';
-import { reactive } from '../src/reactivity.js';
+import { init, resetHydration } from '../src/client/hydrate.js';
+import { directive, clearDirectives, Directive } from '../src/types.js';
+import { clearRootScope, clearElementScopes } from '../src/scope.js';
 import { text } from '../src/directives/text.js';
 import { show } from '../src/directives/show.js';
 import { cclass } from '../src/directives/class.js';
 import { cfor } from '../src/directives/for.js';
 import { cif } from '../src/directives/if.js';
+import { applyGlobals, cleanupGlobals } from './test-globals.js';
 
 describe('E2E: SSR → Hydration', () => {
   let serverRegistry: Map<string, Directive>;
 
   beforeEach(() => {
-    // Clear global directives between tests
+    applyGlobals();
     clearDirectives();
 
-    // Server registry
     serverRegistry = new Map();
     registerServerDirective(serverRegistry, 'text', text);
     registerServerDirective(serverRegistry, 'show', show);
@@ -36,7 +34,6 @@ describe('E2E: SSR → Hydration', () => {
     registerServerDirective(serverRegistry, 'for', cfor);
     registerServerDirective(serverRegistry, 'if', cif);
 
-    // Client registry (global)
     directive('g-text', text);
     directive('g-show', show);
     directive('g-class', cclass);
@@ -45,8 +42,11 @@ describe('E2E: SSR → Hydration', () => {
   });
 
   afterEach(() => {
-    document.body.innerHTML = '';
     clearDirectives();
+    clearRootScope();
+    clearElementScopes();
+    resetHydration();
+    cleanupGlobals();
   });
 
   /**
@@ -167,10 +167,7 @@ describe('E2E: SSR → Hydration', () => {
     expect(ssrHtml).not.toContain('<p g-if="show">Hidden</p></template><p'); // Not rendered outside template
   });
 
-  // TODO: Nested g-for with g-text needs investigation
-  // The child elements are being processed by the main render loop
-  // instead of g-for's processClonedElement
-  it.skip('should render nested g-for with g-text on server', async () => {
+  it('should render nested g-for with g-text on server', async () => {
     const ssrHtml = await render(
       '<div g-for="user in users"><span g-text="user.name"></span></div>',
       {
@@ -215,6 +212,7 @@ describe('E2E: Hydration preserves SSR content', () => {
   let serverRegistry: Map<string, Directive>;
 
   beforeEach(() => {
+    applyGlobals();
     clearDirectives();
 
     serverRegistry = new Map();
@@ -232,8 +230,11 @@ describe('E2E: Hydration preserves SSR content', () => {
   });
 
   afterEach(() => {
-    document.body.innerHTML = '';
     clearDirectives();
+    clearRootScope();
+    clearElementScopes();
+    resetHydration();
+    cleanupGlobals();
   });
 
   it('should not duplicate g-text content during hydration', async () => {
@@ -364,6 +365,7 @@ describe('E2E: Hydration preserves SSR content', () => {
 
 describe('E2E: Client hydration initialization', () => {
   beforeEach(() => {
+    applyGlobals();
     clearDirectives();
     directive('g-text', text);
     directive('g-show', show);
@@ -373,8 +375,11 @@ describe('E2E: Client hydration initialization', () => {
   });
 
   afterEach(() => {
-    document.body.innerHTML = '';
     clearDirectives();
+    clearRootScope();
+    clearElementScopes();
+    resetHydration();
+    cleanupGlobals();
   });
 
   it('should hydrate g-text with scoped state', async () => {
@@ -410,8 +415,7 @@ describe('E2E: Client hydration initialization', () => {
     expect(p.style.display).toBe('none');
   });
 
-  // TODO: g-class hydration needs investigation
-  it.skip('should hydrate g-class based on state', async () => {
+  it('should hydrate g-class based on state', async () => {
     const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
       $scope.isActive = true;
     };
@@ -427,8 +431,7 @@ describe('E2E: Client hydration initialization', () => {
     expect(button.classList.contains('active')).toBe(true);
   });
 
-  // TODO: g-for client hydration needs investigation
-  it.skip('should hydrate g-for and render items', async () => {
+  it('should hydrate g-for and render items', async () => {
     const provider: Directive = ($element: Element, $scope: Record<string, unknown>) => {
       $scope.items = ['Apple', 'Banana'];
     };
@@ -449,14 +452,18 @@ describe('E2E: Client hydration initialization', () => {
 
 describe('E2E: assign option', () => {
   beforeEach(() => {
+    applyGlobals();
     clearDirectives();
     directive('g-text', text);
     directive('g-class', cclass);
   });
 
   afterEach(() => {
-    document.body.innerHTML = '';
     clearDirectives();
+    clearRootScope();
+    clearElementScopes();
+    resetHydration();
+    cleanupGlobals();
   });
 
   it('should make assigned values available in expressions', async () => {

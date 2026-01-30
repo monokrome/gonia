@@ -45,6 +45,9 @@ let initialized = false;
 /** Registered services */
 let services: ServiceRegistry = new Map();
 
+/** Current MutationObserver (for cleanup) */
+let observer: MutationObserver | null = null;
+
 /** Context cache by element */
 const contextCache = new WeakMap<Element, Context>();
 
@@ -587,7 +590,12 @@ export async function init(
   }
 
   // Set up MutationObserver for dynamic elements
-  const observer = new MutationObserver((mutations) => {
+  // Clean up previous observer if it exists
+  if (observer) {
+    observer.disconnect();
+  }
+
+  observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
@@ -616,3 +624,20 @@ export const hydrate = init;
  * Alias for {@link init}. Use for pure client-side rendering.
  */
 export const mount = init;
+
+/**
+ * Reset hydration state for testing.
+ *
+ * @remarks
+ * Clears cached selector, disconnects observer, and resets initialized flag.
+ * Primarily useful for testing.
+ */
+export function resetHydration(): void {
+  cachedSelector = null;
+  initialized = false;
+  defaultRegistry = null;
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+  }
+}

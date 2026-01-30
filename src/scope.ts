@@ -12,7 +12,17 @@ import { findAncestor } from './dom.js';
 import { resolveContext, ContextKey } from './context-registry.js';
 
 /** WeakMap to store element scopes */
-const elementScopes = new WeakMap<Element, Record<string, unknown>>();
+let elementScopes = new WeakMap<Element, Record<string, unknown>>();
+
+/**
+ * Clear all element scopes.
+ *
+ * @remarks
+ * Primarily useful for testing.
+ */
+export function clearElementScopes(): void {
+  elementScopes = new WeakMap();
+}
 
 /** Root scope for top-level directives without explicit parent scope */
 let rootScope: Record<string, unknown> | null = null;
