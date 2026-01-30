@@ -174,6 +174,11 @@ async function build() {
 build();
 ```
 
+## Async Rendering
+
+Directives with async functions can use different SSR strategies — waiting for completion,
+rendering a fallback, or streaming replacements. See [Async Rendering](./async-rendering.md).
+
 ## Best Practices
 
 ### 1. Keep Initial State Minimal

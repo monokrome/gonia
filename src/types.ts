@@ -61,6 +61,18 @@ export interface InjectableRegistry {
   $templates: { get(name: string): Promise<string> };
   /** Current execution mode (server or client) */
   $mode: Mode;
+  /** Force fallback rendering from within an async directive (throws FallbackSignal) */
+  $fallback: () => never;
+}
+
+/**
+ * Options for server-side rendering of async directives.
+ */
+export interface RenderOptions {
+  /** Global timeout in ms for async operations (await mode) */
+  timeout?: number;
+  /** Max nesting depth for await mode (default: 10) */
+  maxDepth?: number;
 }
 
 /**
@@ -283,6 +295,14 @@ export type TemplateOption =
   | ((attrs: TemplateAttrs, el: Element) => string | Promise<string>);
 
 /**
+ * Fallback content shown while an async directive is loading.
+ * Same shape as TemplateOption.
+ */
+export type FallbackOption =
+  | string
+  | ((attrs: TemplateAttrs, el: Element) => string | Promise<string>);
+
+/**
  * Options for directive registration.
  */
 export interface DirectiveOptions {
@@ -381,6 +401,43 @@ export interface DirectiveOptions {
    * ```
    */
   using?: ContextKey<unknown>[];
+
+  /**
+   * Fallback content shown while an async directive is loading.
+   *
+   * @remarks
+   * Only meaningful when the directive function is async.
+   * Rendered immediately on the server in fallback/stream modes,
+   * and on the client while the async function resolves.
+   *
+   * @example
+   * ```ts
+   * directive('heavy-widget', async ($scope) => {
+   *   const mod = await import('./heavy-widget.js');
+   *   mod.setup($scope);
+   * }, {
+   *   scope: true,
+   *   template: '<div class="widget">...</div>',
+   *   fallback: '<div class="spinner">Loading...</div>',
+   * });
+   * ```
+   */
+  fallback?: FallbackOption;
+
+  /**
+   * Server-side rendering mode for async directives.
+   *
+   * @remarks
+   * - `'await'` (default): Run the async fn on the server, wait for it,
+   *   render the template. Includes depth and timeout safety.
+   * - `'fallback'`: Render fallback immediately on the server without
+   *   running the async fn. Client loads and swaps.
+   * - `'stream'`: Render fallback with a unique ID, then stream a
+   *   replacement `<script>` when the fn resolves.
+   *
+   * @defaultValue 'await'
+   */
+  ssr?: 'await' | 'fallback' | 'stream';
 
   /**
    * Values to assign to the directive's scope.

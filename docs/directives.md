@@ -278,6 +278,7 @@ const c: Directive = ($scope) => { ... };
 | `$rootState`  | Root reactive state (shared across tree) |
 | `$mode`       | Current mode (`'server'` or `'client'`)  |
 | `$templates`  | Template registry for `g-template`       |
+| `$fallback`   | Trigger fallback rendering (`() => never`) — see [Async Rendering](./async-rendering.md) |
 
 Custom dependencies can be provided via the `provide` directive option
 and resolved by descendant directives.

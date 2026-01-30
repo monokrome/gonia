@@ -666,12 +666,17 @@ export function gonia(options: GoniaPluginOptions = {}): Plugin {
 
     // Configure SSR
     config(config) {
+      const existing = config.ssr?.external;
+      const external = Array.isArray(existing)
+        ? [...existing, 'happy-dom']
+        : ['happy-dom'];
+
       return {
         ...config,
         ssr: {
           ...config.ssr,
-          // Ensure gonia is processed for SSR
-          noExternal: ['gonia']
+          noExternal: ['gonia'],
+          external,
         }
       };
     }

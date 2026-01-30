@@ -130,6 +130,45 @@ function removeSSRItems(templateEl: Element): void {
 }
 
 /**
+ * Set up a reactive effect that re-renders loop items when dependencies change.
+ *
+ * @internal
+ */
+function setupReactiveLoop(
+  templateContent: Element,
+  parent: Node,
+  templateWrapper: Element | HTMLTemplateElement,
+  parsed: { itemName: string; indexName: string | null; iterableName: string },
+  $eval: EvalFn,
+  $scope: Record<string, unknown>
+): void {
+  let renderedElements: Element[] = [];
+  let scope: EffectScope | null = null;
+
+  effect(() => {
+    if (scope) {
+      scope.stop();
+    }
+    for (const el of renderedElements) {
+      el.remove();
+    }
+
+    scope = createEffectScope();
+    scope.run(() => {
+      renderedElements = renderItems(
+        templateContent,
+        parent,
+        templateWrapper,
+        parsed,
+        $eval,
+        $scope,
+        Mode.CLIENT
+      );
+    });
+  });
+}
+
+/**
  * Iterate over array or object items.
  *
  * @remarks
@@ -205,31 +244,7 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$scope', '$mode']> 
     // Remove SSR-rendered items
     removeSSRItems(templateWrapper);
 
-    // Set up reactive loop
-    let renderedElements: Element[] = [];
-    let scope: EffectScope | null = null;
-
-    effect(() => {
-      if (scope) {
-        scope.stop();
-      }
-      for (const el of renderedElements) {
-        el.remove();
-      }
-
-      scope = createEffectScope();
-      scope.run(() => {
-        renderedElements = renderItems(
-          templateContent,
-          parent,
-          templateWrapper,
-          parsed,
-          $eval,
-          $scope,
-          Mode.CLIENT
-        );
-      });
-    });
+    setupReactiveLoop(templateContent, parent, templateWrapper, parsed, $eval, $scope);
   } else {
     // Fresh client render: element has g-for attribute directly
     // Wrap in template element for consistency
@@ -242,31 +257,7 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$scope', '$mode']> 
 
     parent.replaceChild(templateWrapper, $element);
 
-    // Set up reactive loop
-    let renderedElements: Element[] = [];
-    let scope: EffectScope | null = null;
-
-    effect(() => {
-      if (scope) {
-        scope.stop();
-      }
-      for (const el of renderedElements) {
-        el.remove();
-      }
-
-      scope = createEffectScope();
-      scope.run(() => {
-        renderedElements = renderItems(
-          templateContent,
-          parent,
-          templateWrapper,
-          parsed,
-          $eval,
-          $scope,
-          Mode.CLIENT
-        );
-      });
-    });
+    setupReactiveLoop(templateContent, parent, templateWrapper, parsed, $eval, $scope);
   }
 };
 
