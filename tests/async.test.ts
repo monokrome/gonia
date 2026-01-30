@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { isAsyncFunction, generateAsyncId, resetAsyncIdCounter } from '../src/async.js';
+import { isAsyncFunction, generateAsyncId, resetAsyncIdCounter, FallbackSignal } from '../src/async.js';
 
 describe('isAsyncFunction', () => {
   it('should return true for async functions', () => {
@@ -44,5 +44,18 @@ describe('generateAsyncId', () => {
     generateAsyncId();
     resetAsyncIdCounter();
     expect(generateAsyncId()).toBe('g-async-0');
+  });
+});
+
+describe('FallbackSignal', () => {
+  it('should be identifiable via instanceof', () => {
+    const signal = new FallbackSignal();
+    expect(signal).toBeInstanceOf(FallbackSignal);
+    expect(signal.isFallbackSignal).toBe(true);
+  });
+
+  it('should not be an instance of Error', () => {
+    const signal = new FallbackSignal();
+    expect(signal).not.toBeInstanceOf(Error);
   });
 });

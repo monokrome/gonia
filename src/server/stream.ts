@@ -4,11 +4,12 @@
  * @packageDocumentation
  */
 
-import { RenderOptions, getDirective, Expression, Mode } from '../types.js';
+import { RenderOptions, getDirective, Mode } from '../types.js';
 import { createContext } from '../context.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
 import { getTemplateAttrs } from '../template-utils.js';
+import { FallbackSignal } from '../async.js';
 import { render, StreamPendingChunk } from './render.js';
 import type { DirectiveRegistry } from './render.js';
 
@@ -67,10 +68,6 @@ export function renderStream(
               streamServices
             );
 
-            let useFallback = false;
-            const fallbackFn = () => { useFallback = true; };
-            config.resolveFallback = () => fallbackFn;
-
             const args = resolveInjectables(
               chunk.fn,
               chunk.expr,
@@ -80,10 +77,11 @@ export function renderStream(
               chunk.using
             );
 
-            await (chunk.fn as (...args: unknown[]) => Promise<void>)(...args);
-
-            if (useFallback) {
-              continue;
+            try {
+              await (chunk.fn as (...args: unknown[]) => Promise<void>)(...args);
+            } catch (e) {
+              if (e instanceof FallbackSignal) continue;
+              throw e;
             }
 
             // Render template

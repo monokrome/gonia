@@ -102,7 +102,7 @@ describe('renderStream', () => {
   });
 
   it('should skip streaming chunk when $fallback() is called', async () => {
-    const asyncFn: Directive = async ($fallback: () => void) => {
+    const asyncFn: Directive = async ($fallback: () => never) => {
       $fallback();
     };
     asyncFn.$inject = ['$fallback'];

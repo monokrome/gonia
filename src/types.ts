@@ -61,8 +61,8 @@ export interface InjectableRegistry {
   $templates: { get(name: string): Promise<string> };
   /** Current execution mode (server or client) */
   $mode: Mode;
-  /** Force fallback rendering from within an async directive */
-  $fallback: () => void;
+  /** Force fallback rendering from within an async directive (throws FallbackSignal) */
+  $fallback: () => never;
 }
 
 /**

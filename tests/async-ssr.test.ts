@@ -29,7 +29,7 @@ describe('async SSR: await mode', () => {
   });
 
   it('should render fallback on $fallback() call in await mode', async () => {
-    const asyncFn: Directive = async ($fallback: () => void) => {
+    const asyncFn: Directive = async ($fallback: () => never) => {
       $fallback();
     };
     asyncFn.$inject = ['$fallback'];
@@ -46,6 +46,27 @@ describe('async SSR: await mode', () => {
     expect(result).toContain('Loading...');
     expect(result).toContain('data-g-async="pending"');
     expect(result).not.toContain('Loaded');
+  });
+
+  it('should halt execution when $fallback() is called (throw semantics)', async () => {
+    let reachedAfterFallback = false;
+
+    const asyncFn: Directive = async ($fallback: () => never) => {
+      $fallback();
+      reachedAfterFallback = true;
+    };
+    asyncFn.$inject = ['$fallback'];
+
+    directive('halt-widget', asyncFn, {
+      scope: true,
+      template: '<div>Loaded</div>',
+      fallback: '<div>Halted</div>',
+      ssr: 'await',
+    });
+
+    await render('<halt-widget></halt-widget>', {}, new Map());
+
+    expect(reachedAfterFallback).toBe(false);
   });
 
   it('should render fallback when async fn throws in await mode', async () => {

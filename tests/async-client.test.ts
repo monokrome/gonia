@@ -154,7 +154,7 @@ describe('async client: $fallback injectable', () => {
   });
 
   it('should keep fallback when $fallback() is called on client', async () => {
-    const asyncFn: Directive = async ($fallback: () => void) => {
+    const asyncFn: Directive = async ($fallback: () => never) => {
       $fallback();
     };
     asyncFn.$inject = ['$fallback'];

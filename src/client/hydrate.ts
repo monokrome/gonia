@@ -5,7 +5,7 @@
  */
 
 import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames, FallbackOption } from '../types.js';
-import { isAsyncFunction } from '../async.js';
+import { isAsyncFunction, FallbackSignal } from '../async.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, registerDIProviders } from '../providers.js';
@@ -584,66 +584,39 @@ async function processAsyncDirectiveElement(
 ): Promise<void> {
   const ctx = createContext(Mode.CLIENT, scope);
   const config = createClientResolverConfig(el, () => scope, services);
+  const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
 
   if (asyncState === 'loaded') {
     // SSR already rendered the template — just run fn for reactivity setup
-    let useFallback = false;
-    const fallbackFn = () => { useFallback = true; };
-    config.resolveFallback = () => fallbackFn;
-    const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
-
     try {
       await (fn as (...args: unknown[]) => Promise<void>)(...args);
-    } catch {
-      // Already rendered, just log
+    } catch (e) {
+      if (e instanceof FallbackSignal) {
+        await renderClientFallback(el, options);
+        el.setAttribute('data-g-async', 'pending');
+        return;
+      }
     }
 
-    if (useFallback) {
-      // Directive explicitly asked for fallback even on client
-      await renderClientFallback(el, options);
-      el.setAttribute('data-g-async', 'pending');
-    } else {
-      if (el.hasAttribute('data-g-prerendered')) {
-        el.removeAttribute('data-g-prerendered');
-      }
+    if (el.hasAttribute('data-g-prerendered')) {
+      el.removeAttribute('data-g-prerendered');
+    }
 
-      if (fn.$context?.length) {
-        const state = getLocalState(el);
-        registerProvider(el, fn, state);
-      }
+    if (fn.$context?.length) {
+      const state = getLocalState(el);
+      registerProvider(el, fn, state);
     }
   } else if (asyncState === 'pending' || asyncState === 'streaming' || asyncState === 'timeout') {
     // SSR rendered fallback — run fn, swap to template on success
-    let useFallback = false;
-    const fallbackFn = () => { useFallback = true; };
-    config.resolveFallback = () => fallbackFn;
-    const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
-
     try {
       await (fn as (...args: unknown[]) => Promise<void>)(...args);
-    } catch {
+    } catch (e) {
+      if (e instanceof FallbackSignal) return;
       el.setAttribute('data-g-async', 'error');
       return;
     }
 
-    if (useFallback) {
-      // fn explicitly asked for fallback — leave fallback in place
-      return;
-    }
-
-    // Swap fallback for template
-    if (options.template) {
-      const attrs = getTemplateAttrs(el);
-      let html: string;
-      if (typeof options.template === 'string') {
-        html = options.template as string;
-      } else {
-        const result = (options.template as (attrs: Record<string, string>, el: Element) => string | Promise<string>)(attrs, el);
-        html = result instanceof Promise ? await result : result;
-      }
-      el.innerHTML = html;
-    }
-
+    await renderTemplateSwap(el, options);
     el.setAttribute('data-g-async', 'loaded');
     el.removeAttribute('data-g-async-id');
 
@@ -656,34 +629,15 @@ async function processAsyncDirectiveElement(
     await renderClientFallback(el, options);
     el.setAttribute('data-g-async', 'pending');
 
-    let useFallback = false;
-    const fallbackFn = () => { useFallback = true; };
-    config.resolveFallback = () => fallbackFn;
-    const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
-
     try {
       await (fn as (...args: unknown[]) => Promise<void>)(...args);
-    } catch {
+    } catch (e) {
+      if (e instanceof FallbackSignal) return;
       el.setAttribute('data-g-async', 'error');
       return;
     }
 
-    if (useFallback) {
-      return;
-    }
-
-    if (options.template) {
-      const attrs = getTemplateAttrs(el);
-      let html: string;
-      if (typeof options.template === 'string') {
-        html = options.template as string;
-      } else {
-        const result = (options.template as (attrs: Record<string, string>, el: Element) => string | Promise<string>)(attrs, el);
-        html = result instanceof Promise ? await result : result;
-      }
-      el.innerHTML = html;
-    }
-
+    await renderTemplateSwap(el, options);
     el.setAttribute('data-g-async', 'loaded');
 
     if (fn.$context?.length) {
@@ -691,6 +645,28 @@ async function processAsyncDirectiveElement(
       registerProvider(el, fn, state);
     }
   }
+}
+
+/**
+ * Swap element content to its template.
+ *
+ * @internal
+ */
+async function renderTemplateSwap(
+  el: Element,
+  options: { template?: unknown; [key: string]: unknown }
+): Promise<void> {
+  if (!options.template) return;
+
+  const attrs = getTemplateAttrs(el);
+  let html: string;
+  if (typeof options.template === 'string') {
+    html = options.template as string;
+  } else {
+    const result = (options.template as (attrs: Record<string, string>, el: Element) => string | Promise<string>)(attrs, el);
+    html = result instanceof Promise ? await result : result;
+  }
+  el.innerHTML = html;
 }
 
 /**

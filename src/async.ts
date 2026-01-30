@@ -5,6 +5,14 @@
  */
 
 /**
+ * Thrown by `$fallback()` to signal that the directive wants fallback rendering.
+ * The framework catches this at the directive execution boundary.
+ */
+export class FallbackSignal {
+  readonly isFallbackSignal = true;
+}
+
+/**
  * Detect whether a function is async (declared with `async` keyword).
  *
  * @param fn - The function to check

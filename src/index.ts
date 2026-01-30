@@ -10,7 +10,7 @@
 
 export { Mode, Expression, Context, Directive, directive, getDirective, getDirectiveNames, clearDirectives, configureDirective } from './types.js';
 export type { DirectiveMeta, RenderOptions, FallbackOption } from './types.js';
-export { isAsyncFunction } from './async.js';
+export { isAsyncFunction, FallbackSignal } from './async.js';
 export { createContext, createChildContext } from './context.js';
 export { reactive, effect, createScope, createEffectScope } from './reactivity.js';
 export type { EffectScope } from './reactivity.js';

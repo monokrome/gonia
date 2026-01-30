@@ -19,7 +19,7 @@ import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
 import { getTemplateAttrs, hasBindAttributes, decodeHTMLEntities } from '../template-utils.js';
 import { processBindAttributesOnce } from '../bind-utils.js';
 import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
-import { isAsyncFunction, generateAsyncId } from '../async.js';
+import { isAsyncFunction, generateAsyncId, FallbackSignal } from '../async.js';
 
 /**
  * Registry of directives by name.
@@ -511,33 +511,34 @@ export async function render(
               }
             } else {
               depthMap.set(item.el, depth + 1);
-              let useFallback = false;
-              const fallbackFn = () => { useFallback = true; };
               const config = createServerResolverConfig(item.el, scopeState, state, services);
-              config.resolveFallback = () => fallbackFn;
               const args = resolveInjectables(fn!, item.expr, item.el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
 
+              let didFallback = false;
               try {
                 await (fn as (...args: unknown[]) => Promise<void>)(...args);
-              } catch {
-                useFallback = true;
-              }
 
-              // Check if timeout fired while fn was running
-              if (aborted) {
-                useFallback = true;
-              }
-
-              if (useFallback) {
+                // Check if timeout fired while fn was running
+                if (aborted) {
+                  didFallback = true;
+                  await renderFallback(item.el, options.fallback!, options, 'await');
+                  item.el.setAttribute('data-g-async', 'timeout');
+                }
+              } catch (e) {
+                didFallback = true;
                 await renderFallback(item.el, options.fallback!, options, 'await');
-                item.el.setAttribute('data-g-async', aborted ? 'timeout' : 'pending');
-              } else {
-                // Register as context provider if directive declares $context
+                item.el.setAttribute('data-g-async',
+                  aborted ? 'timeout'
+                    : e instanceof FallbackSignal ? 'pending'
+                    : 'pending'
+                );
+              }
+
+              if (!didFallback) {
                 if (fn!.$context?.length) {
                   registerProvider(item.el, fn!, scopeState);
                 }
 
-                // Render template
                 if (options.template) {
                   const attrs = getTemplateAttrs(item.el);
                   let templateHtml: string;

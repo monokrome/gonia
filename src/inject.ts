@@ -14,6 +14,7 @@
 
 import type { ContextKey } from './context-registry.js';
 import type { Expression, EvalFn } from './types.js';
+import { FallbackSignal } from './async.js';
 
 /**
  * An injectable dependency name.
@@ -104,8 +105,6 @@ export interface DependencyResolverConfig {
   resolveCustom?: (name: string) => unknown | undefined;
   /** Current mode */
   mode: 'server' | 'client';
-  /** Resolve $fallback injectable for async directives */
-  resolveFallback?: () => (() => void) | undefined;
 }
 
 /**
@@ -154,11 +153,8 @@ export function resolveDependencies(
         return config.resolveRootState?.() ?? config.resolveState();
       case '$mode':
         return config.mode;
-      case '$fallback': {
-        const fb = config.resolveFallback?.();
-        if (fb) return fb;
-        return () => {};
-      }
+      case '$fallback':
+        return (): never => { throw new FallbackSignal(); };
       default: {
         // Look up in custom resolver (services, providers, etc.)
         if (config.resolveCustom) {

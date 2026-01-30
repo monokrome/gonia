@@ -133,6 +133,7 @@ export function registerDirectiveElement(
   fn: Directive<any>,
   options: DirectiveOptions
 ): void {
+  if (typeof customElements === 'undefined') return;
   // Don't re-register if already defined
   if (customElements.get(name)) {
     return;
