@@ -10,8 +10,9 @@ import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
 import { getTemplateAttrs } from '../template-utils.js';
 import { FallbackSignal } from '../async.js';
-import { render, StreamPendingChunk } from './render.js';
+import { render } from './render.js';
 import type { DirectiveRegistry } from './render.js';
+import type { StreamPendingChunk } from './async-render.js';
 
 /** Registered services (shared with render.ts via import) */
 let streamServices: ServiceRegistry = new Map();

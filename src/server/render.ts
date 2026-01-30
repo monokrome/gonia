@@ -5,7 +5,7 @@
  */
 
 import { Window } from 'happy-dom';
-import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames, RenderOptions, FallbackOption } from '../types.js';
+import { Mode, Directive, Expression, getDirective, RenderOptions, TemplateOption } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
 import { registerProvider, registerDIProviders } from '../providers.js';
@@ -16,10 +16,18 @@ import { PROCESSED_ATTR } from '../process.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { ContextKey } from '../context-registry.js';
 import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
-import { getTemplateAttrs, hasBindAttributes, decodeHTMLEntities } from '../template-utils.js';
+import { getTemplateAttrs, decodeHTMLEntities } from '../template-utils.js';
 import { processBindAttributesOnce } from '../bind-utils.js';
 import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
-import { isAsyncFunction, generateAsyncId, FallbackSignal } from '../async.js';
+import { isAsyncFunction, FallbackSignal } from '../async.js';
+import { getSelector, indexTree } from './index-tree.js';
+import { getAsyncDepth, renderFallback } from './async-render.js';
+import type { IndexedDirective } from './index-tree.js';
+import type { StreamPendingChunk } from './async-render.js';
+
+// Re-export types used by other modules
+export type { IndexedDirective } from './index-tree.js';
+export type { StreamPendingChunk } from './async-render.js';
 
 /**
  * Registry of directives by name.
@@ -31,67 +39,6 @@ let services: ServiceRegistry = new Map();
 
 // Re-export for backwards compatibility
 export type { ServiceRegistry } from '../resolver-config.js';
-
-/**
- * Build a CSS selector for all registered directives.
- * Uses the global directive registry to support any prefix (g-, l-, v-, etc.).
- * Also includes local registry entries with g- prefix for backward compatibility.
- *
- * @internal
- */
-function getSelector(localRegistry?: DirectiveRegistry): string {
-  const selectors: string[] = [];
-
-  for (const name of getDirectiveNames()) {
-    const registration = getDirective(name);
-    if (!registration) continue;
-
-    const { options } = registration;
-
-    // Custom element directives - match by tag name
-    if (options.template || options.scope || options.provide || options.using || options.fallback) {
-      selectors.push(name);
-    }
-
-    // All directives can be used as attributes
-    selectors.push(`[${name}]`);
-  }
-
-  // Add local registry entries with g- prefix (backward compatibility)
-  if (localRegistry) {
-    for (const name of localRegistry.keys()) {
-      const fullName = `g-${name}`;
-      // Skip if already in global registry
-      if (!getDirective(fullName)) {
-        selectors.push(`[${fullName}]`);
-      }
-    }
-  }
-
-  // Also match native <slot> elements
-  selectors.push('slot');
-  // Match g-scope for inline scope initialization (TODO: make prefix configurable)
-  selectors.push('[g-scope]');
-  // Match common g-bind:* attributes for dynamic binding
-  // These need to be indexed so their expressions can be evaluated with proper scope
-  // Note: happy-dom doesn't need colon escaping (and escaped colons don't work)
-  selectors.push('[g-bind:class]');
-  selectors.push('[g-bind:style]');
-  selectors.push('[g-bind:href]');
-  selectors.push('[g-bind:src]');
-  selectors.push('[g-bind:id]');
-  selectors.push('[g-bind:value]');
-  selectors.push('[g-bind:disabled]');
-  selectors.push('[g-bind:checked]');
-  selectors.push('[g-bind:placeholder]');
-  selectors.push('[g-bind:title]');
-  selectors.push('[g-bind:alt]');
-  selectors.push('[g-bind:name]');
-  selectors.push('[g-bind:type]');
-  // Note: Can't do wildcard for data-* attributes in CSS, but hasBindAttributes handles them
-
-  return selectors.join(',');
-}
 
 /**
  * Register a directive in the registry.
@@ -141,36 +88,30 @@ function findServerScope(el: Element, rootState: Record<string, unknown>): Recor
 }
 
 /**
- * An indexed directive instance found in the DOM.
+ * Resolve a template option and render it into an element.
+ * Sets innerHTML, marks as prerendered, and re-indexes the subtree.
  *
  * @internal
  */
-interface IndexedDirective {
-  el: Element;
-  name: string;
-  directive: Directive | null; // null for native slots
-  expr: Expression;
-  priority: number;
-  isNativeSlot?: boolean;
-  isCustomElement?: boolean;
-  using?: ContextKey<unknown>[];
-}
-
-/**
- * A pending stream chunk for async directives in stream mode.
- * Used by renderStream() to emit replacement scripts after initial HTML.
- *
- * @internal
- */
-export interface StreamPendingChunk {
-  asyncId: string;
-  el: Element;
-  fn: Directive;
-  options: { template?: FallbackOption; [key: string]: unknown };
-  scopeState: Record<string, unknown>;
-  rootState: Record<string, unknown>;
-  expr: Expression;
-  using?: ContextKey<unknown>[];
+async function renderTemplate(
+  el: Element,
+  template: TemplateOption,
+  selector: string,
+  registry: DirectiveRegistry,
+  index: IndexedDirective[],
+  indexed: Set<Element>
+): Promise<void> {
+  const attrs = getTemplateAttrs(el);
+  let templateHtml: string;
+  if (typeof template === 'string') {
+    templateHtml = template;
+  } else {
+    const result = template(attrs, el);
+    templateHtml = result instanceof Promise ? await result : result;
+  }
+  el.innerHTML = templateHtml;
+  el.setAttribute('data-g-prerendered', 'true');
+  indexTree(el, selector, registry, index, indexed);
 }
 
 /**
@@ -217,141 +158,9 @@ export async function render(
   const indexed = new Set<Element>(); // Track which elements have been indexed
   const selector = getSelector(registry);
 
-  /**
-   * Index all directive elements in a subtree.
-   * Called after innerHTML is set to discover new elements.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function indexTree(root: any): void {
-    // Get all matching elements in the subtree
-    const elements = root.querySelectorAll(selector);
-
-    for (const match of elements) {
-      // Skip if already indexed
-      if (indexed.has(match)) continue;
-      indexed.add(match);
-
-      // Skip elements inside template content (used as placeholders)
-      if (match.closest('template')) {
-        continue;
-      }
-
-      // Handle native <slot> elements
-      if (match.tagName === 'SLOT') {
-        index.push({
-          el: match,
-          name: 'slot',
-          directive: null,
-          expr: '' as Expression,
-          priority: DirectivePriority.NORMAL,
-          isNativeSlot: true
-        });
-        continue;
-      }
-
-      // Handle g-scope elements that don't have other directives
-      if (match.hasAttribute('g-scope')) {
-        let hasDirective = false;
-        for (const name of getDirectiveNames()) {
-          if (match.hasAttribute(name)) {
-            hasDirective = true;
-            break;
-          }
-        }
-        if (!hasDirective) {
-          index.push({
-            el: match,
-            name: 'scope',
-            directive: null,
-            expr: '' as Expression,
-            priority: DirectivePriority.STRUCTURAL,
-            isNativeSlot: false
-          });
-        }
-      }
-
-      // Handle g-bind:* elements that don't have other directives
-      if (hasBindAttributes(match)) {
-        let hasDirective = false;
-        for (const name of getDirectiveNames()) {
-          if (match.hasAttribute(name)) {
-            hasDirective = true;
-            break;
-          }
-        }
-        if (!hasDirective && !match.hasAttribute('g-scope')) {
-          index.push({
-            el: match,
-            name: 'bind',
-            directive: null,
-            expr: '' as Expression,
-            priority: DirectivePriority.NORMAL,
-            isNativeSlot: false
-          });
-        }
-      }
-
-      // Check all registered directives from global registry
-      const tagName = match.tagName.toLowerCase();
-
-      for (const name of getDirectiveNames()) {
-        const registration = getDirective(name);
-        if (!registration) continue;
-
-        const { fn, options } = registration;
-
-        // Check if this is a custom element directive (tag name matches)
-        if (tagName === name) {
-          if (options.template || options.scope || options.provide || options.using || options.fallback) {
-            index.push({
-              el: match,
-              name,
-              directive: fn,
-              expr: '' as Expression,
-              priority: fn?.priority ?? DirectivePriority.TEMPLATE,
-              isCustomElement: true,
-              using: options.using
-            });
-          }
-        }
-
-        // Check if this is an attribute directive
-        const attr = match.getAttribute(name);
-        if (attr !== null) {
-          index.push({
-            el: match,
-            name,
-            directive: fn,
-            expr: decodeHTMLEntities(attr) as Expression,
-            priority: fn?.priority ?? DirectivePriority.NORMAL,
-            using: options.using
-          });
-        }
-      }
-
-      // Also check local registry for backward compatibility
-      for (const [name, directive] of registry) {
-        const attr = match.getAttribute(`g-${name}`);
-        if (attr !== null) {
-          // Skip if already added from global registry
-          const fullName = `g-${name}`;
-          if (getDirective(fullName)) continue;
-
-          index.push({
-            el: match,
-            name,
-            directive,
-            expr: decodeHTMLEntities(attr) as Expression,
-            priority: directive.priority ?? DirectivePriority.NORMAL
-          });
-        }
-      }
-    }
-  }
-
   // Set HTML and index initial tree
   document.body.innerHTML = html;
-  indexTree(document.body);
+  indexTree(document.body, selector, registry, index, indexed);
 
   const ctx = createContext(Mode.SERVER, state);
   const processed = new Set<Element>();
@@ -540,17 +349,7 @@ export async function render(
                 }
 
                 if (options.template) {
-                  const attrs = getTemplateAttrs(item.el);
-                  let templateHtml: string;
-                  if (typeof options.template === 'string') {
-                    templateHtml = options.template;
-                  } else {
-                    const result = options.template(attrs, item.el);
-                    templateHtml = result instanceof Promise ? await result : result;
-                  }
-                  item.el.innerHTML = templateHtml;
-                  item.el.setAttribute('data-g-prerendered', 'true');
-                  indexTree(item.el);
+                  await renderTemplate(item.el, options.template, selector, registry, index, indexed);
                 }
                 item.el.setAttribute('data-g-async', 'loaded');
               }
@@ -568,17 +367,7 @@ export async function render(
             }
 
             if (options.template) {
-              const attrs = getTemplateAttrs(item.el);
-              let templateHtml: string;
-              if (typeof options.template === 'string') {
-                templateHtml = options.template;
-              } else {
-                const result = options.template(attrs, item.el);
-                templateHtml = result instanceof Promise ? await result : result;
-              }
-              item.el.innerHTML = templateHtml;
-              item.el.setAttribute('data-g-prerendered', 'true');
-              indexTree(item.el);
+              await renderTemplate(item.el, options.template, selector, registry, index, indexed);
             }
           }
         } else if (item.directive === null) {
@@ -610,7 +399,7 @@ export async function render(
     }
 
     // Re-index tree to catch elements added by directives (e.g., g-template)
-    indexTree(document.body);
+    indexTree(document.body, selector, registry, index, indexed);
   }
 
   if (timeoutId !== undefined) {
@@ -618,73 +407,4 @@ export async function render(
   }
 
   return document.body.innerHTML;
-}
-
-/**
- * Get the nesting depth of an async directive by walking up the DOM.
- *
- * @internal
- */
-function getAsyncDepth(el: Element, depthMap: WeakMap<Element, number>): number {
-  let current: Element | null = el.parentElement;
-  while (current) {
-    const depth = depthMap.get(current);
-    if (depth !== undefined) {
-      return depth;
-    }
-    current = current.parentElement;
-  }
-  return 0;
-}
-
-/**
- * Render fallback content for an async directive.
- *
- * @internal
- */
-async function renderFallback(
-  el: Element,
-  fallback: FallbackOption,
-  options: { template?: unknown; [key: string]: unknown },
-  ssrMode: string,
-  streamCtx?: {
-    fn: Directive;
-    scopeState: Record<string, unknown>;
-    rootState: Record<string, unknown>;
-    expr: Expression;
-    using?: ContextKey<unknown>[];
-    streamPending: StreamPendingChunk[];
-  }
-): Promise<void> {
-  let fallbackHtml: string;
-  if (typeof fallback === 'string') {
-    fallbackHtml = fallback;
-  } else {
-    const attrs = getTemplateAttrs(el);
-    const result = fallback(attrs, el);
-    fallbackHtml = result instanceof Promise ? await result : result;
-  }
-
-  el.innerHTML = fallbackHtml;
-
-  if (ssrMode === 'stream') {
-    const asyncId = generateAsyncId();
-    el.setAttribute('data-g-async', 'streaming');
-    el.setAttribute('data-g-async-id', asyncId);
-
-    if (streamCtx) {
-      streamCtx.streamPending.push({
-        asyncId,
-        el,
-        fn: streamCtx.fn,
-        options: options as StreamPendingChunk['options'],
-        scopeState: streamCtx.scopeState,
-        rootState: streamCtx.rootState,
-        expr: streamCtx.expr,
-        using: streamCtx.using,
-      });
-    }
-  } else {
-    el.setAttribute('data-g-async', 'pending');
-  }
 }
