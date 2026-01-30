@@ -1,0 +1,10 @@
+{
+  "path": ["src/"],
+  "ignore": ["dist/", "node_modules/", "coverage/"],
+  "minLines": 10,
+  "minTokens": 50,
+  "maxLines": 5000,
+  "threshold": 1,
+  "reporters": ["console"],
+  "absolute": false
+}
