@@ -132,6 +132,13 @@ export function resolveDependencies(
   const inject = getInjectables(fn);
 
   const args: unknown[] = inject.map(dep => {
+    if (dep.startsWith('_')) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`Injectable '${dep}' starts with underscore — passing undefined.`);
+      }
+      return undefined;
+    }
+
     switch (dep) {
       case '$expr':
         return expr;
