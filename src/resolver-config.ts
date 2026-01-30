@@ -22,6 +22,7 @@ export interface ResolverConfig {
   resolveRootState?: () => Record<string, unknown>;
   resolveCustom: (name: string) => unknown;
   mode: 'client' | 'server';
+  resolveFallback?: () => (() => void) | undefined;
 }
 
 /**

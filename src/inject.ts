@@ -104,6 +104,8 @@ export interface DependencyResolverConfig {
   resolveCustom?: (name: string) => unknown | undefined;
   /** Current mode */
   mode: 'server' | 'client';
+  /** Resolve $fallback injectable for async directives */
+  resolveFallback?: () => (() => void) | undefined;
 }
 
 /**
@@ -152,6 +154,11 @@ export function resolveDependencies(
         return config.resolveRootState?.() ?? config.resolveState();
       case '$mode':
         return config.mode;
+      case '$fallback': {
+        const fb = config.resolveFallback?.();
+        if (fb) return fb;
+        return () => {};
+      }
       default: {
         // Look up in custom resolver (services, providers, etc.)
         if (config.resolveCustom) {
