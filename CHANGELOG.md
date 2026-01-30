@@ -1,3 +1,33 @@
+## [0.3.6](https://github.com/monokrome/gonia/compare/v0.3.5...v0.3.6) (2026-01-30)
+
+
+### Features
+
+* async directives with SSR modes: await, fallback, stream
+* `renderStream()` for streaming async directive responses
+* `$fallback` injectable for programmatic fallback control flow
+* client hydration for all async SSR modes
+
+
+### Refactoring
+
+* split server render.ts into index-tree, async-render modules
+* extract duplicated code into shared helpers (0% duplication)
+* add jscpd for code duplication detection in CI (1% threshold)
+
+
+### Bug Fixes
+
+* externalize happy-dom in SSR builds to avoid ws native dep errors
+
+
+### Documentation
+
+* async rendering guide covering SSR modes, streaming, hydration
+* cross-references from ssr.md and directives.md
+
+
+
 ## [0.2.3](https://github.com/monokrome/gonia/compare/v0.2.2...v0.2.3) (2026-01-27)
 
 
