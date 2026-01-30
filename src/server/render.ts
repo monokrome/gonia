@@ -5,7 +5,7 @@
  */
 
 import { Window } from 'happy-dom';
-import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames } from '../types.js';
+import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames, RenderOptions, FallbackOption } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
 import { registerProvider, registerDIProviders } from '../providers.js';
@@ -19,6 +19,7 @@ import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
 import { getTemplateAttrs, hasBindAttributes, decodeHTMLEntities } from '../template-utils.js';
 import { processBindAttributesOnce } from '../bind-utils.js';
 import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
+import { isAsyncFunction, generateAsyncId } from '../async.js';
 
 /**
  * Registry of directives by name.
@@ -48,7 +49,7 @@ function getSelector(localRegistry?: DirectiveRegistry): string {
     const { options } = registration;
 
     // Custom element directives - match by tag name
-    if (options.template || options.scope || options.provide || options.using) {
+    if (options.template || options.scope || options.provide || options.using || options.fallback) {
       selectors.push(name);
     }
 
@@ -156,6 +157,23 @@ interface IndexedDirective {
 }
 
 /**
+ * A pending stream chunk for async directives in stream mode.
+ * Used by renderStream() to emit replacement scripts after initial HTML.
+ *
+ * @internal
+ */
+export interface StreamPendingChunk {
+  asyncId: string;
+  el: Element;
+  fn: Directive;
+  options: { template?: FallbackOption; [key: string]: unknown };
+  scopeState: Record<string, unknown>;
+  rootState: Record<string, unknown>;
+  expr: Expression;
+  using?: ContextKey<unknown>[];
+}
+
+/**
  * Render HTML with directives on the server.
  *
  * @remarks
@@ -168,6 +186,8 @@ interface IndexedDirective {
  * @param html - The HTML template string
  * @param state - The state object to use for expression evaluation
  * @param registry - The directive registry
+ * @param renderOptions - Optional async rendering configuration
+ * @param streamPending - Internal: collects pending chunks for stream mode
  * @returns The rendered HTML string
  *
  * @example
@@ -186,7 +206,9 @@ interface IndexedDirective {
 export async function render(
   html: string,
   state: Record<string, unknown>,
-  registry: DirectiveRegistry
+  registry: DirectiveRegistry,
+  renderOptions?: RenderOptions,
+  streamPending?: StreamPendingChunk[]
 ): Promise<string> {
   const window = new Window();
   const document = window.document;
@@ -280,7 +302,7 @@ export async function render(
 
         // Check if this is a custom element directive (tag name matches)
         if (tagName === name) {
-          if (options.template || options.scope || options.provide || options.using) {
+          if (options.template || options.scope || options.provide || options.using || options.fallback) {
             index.push({
               el: match,
               name,
@@ -333,6 +355,16 @@ export async function render(
 
   const ctx = createContext(Mode.SERVER, state);
   const processed = new Set<Element>();
+
+  // Async directive support: depth tracking and timeout
+  const maxDepth = renderOptions?.maxDepth ?? 10;
+  const depthMap = new WeakMap<Element, number>();
+
+  let aborted = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  if (renderOptions?.timeout) {
+    timeoutId = setTimeout(() => { aborted = true; }, renderOptions.timeout);
+  }
 
   // Process directives in rounds until no new elements are added
   let hasMore = true;
@@ -439,7 +471,6 @@ export async function render(
         } else if (item.isCustomElement) {
           // Custom element directive - must check before directive === null
           // because custom elements can have fn: null (template-only)
-          // Custom element directive - process template, scope, etc.
           const registration = getDirective(item.name);
           if (!registration) continue;
 
@@ -453,34 +484,101 @@ export async function render(
             registerDIProviders(item.el, options.provide);
           }
 
-          // Call directive function if present (initializes state)
-          if (fn) {
-            const config = createServerResolverConfig(item.el, scopeState, state, services);
-            const args = resolveInjectables(fn, item.expr, item.el, ctx.eval.bind(ctx), config, options.using);
-            await (fn as (...args: unknown[]) => void | Promise<void>)(...args);
+          // Async directive handling: check if fn is async and fallback is configured
+          const fnIsAsync = fn && isAsyncFunction(fn);
+          const hasFallback = options.fallback !== undefined;
+          const ssrMode = options.ssr ?? 'await';
 
-            // Register as context provider if directive declares $context
-            if (fn.$context?.length) {
-              registerProvider(item.el, fn, scopeState);
-            }
-          }
-
-          // Render template if present
-          if (options.template) {
-            const attrs = getTemplateAttrs(item.el);
-            let templateHtml: string;
-
-            if (typeof options.template === 'string') {
-              templateHtml = options.template;
+          if (fnIsAsync && hasFallback && ssrMode !== 'await') {
+            // fallback or stream mode: skip running the fn on the server
+            await renderFallback(item.el, options.fallback!, options, ssrMode, streamPending ? {
+              fn: fn!,
+              scopeState,
+              rootState: state,
+              expr: item.expr,
+              using: options.using as ContextKey<unknown>[] | undefined,
+              streamPending
+            } : undefined);
+          } else if (fnIsAsync && hasFallback && ssrMode === 'await') {
+            // await mode: run the fn, await it, render template
+            const depth = getAsyncDepth(item.el, depthMap);
+            if (depth >= maxDepth || aborted) {
+              // Over depth or timed out: render fallback
+              await renderFallback(item.el, options.fallback!, options, 'await');
+              item.el.setAttribute('data-g-async', aborted ? 'timeout' : 'timeout');
+              if (depth >= maxDepth) {
+                console.warn(`[gonia] Async directive '${item.name}' exceeded max depth (${maxDepth}), rendering fallback`);
+              }
             } else {
-              const result = options.template(attrs, item.el);
-              templateHtml = result instanceof Promise ? await result : result;
+              depthMap.set(item.el, depth + 1);
+              let useFallback = false;
+              const fallbackFn = () => { useFallback = true; };
+              const config = createServerResolverConfig(item.el, scopeState, state, services);
+              config.resolveFallback = () => fallbackFn;
+              const args = resolveInjectables(fn!, item.expr, item.el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
+
+              try {
+                await (fn as (...args: unknown[]) => Promise<void>)(...args);
+              } catch {
+                useFallback = true;
+              }
+
+              // Check if timeout fired while fn was running
+              if (aborted) {
+                useFallback = true;
+              }
+
+              if (useFallback) {
+                await renderFallback(item.el, options.fallback!, options, 'await');
+                item.el.setAttribute('data-g-async', aborted ? 'timeout' : 'pending');
+              } else {
+                // Register as context provider if directive declares $context
+                if (fn!.$context?.length) {
+                  registerProvider(item.el, fn!, scopeState);
+                }
+
+                // Render template
+                if (options.template) {
+                  const attrs = getTemplateAttrs(item.el);
+                  let templateHtml: string;
+                  if (typeof options.template === 'string') {
+                    templateHtml = options.template;
+                  } else {
+                    const result = options.template(attrs, item.el);
+                    templateHtml = result instanceof Promise ? await result : result;
+                  }
+                  item.el.innerHTML = templateHtml;
+                  item.el.setAttribute('data-g-prerendered', 'true');
+                  indexTree(item.el);
+                }
+                item.el.setAttribute('data-g-async', 'loaded');
+              }
+            }
+          } else {
+            // Non-async path (original behavior)
+            if (fn) {
+              const config = createServerResolverConfig(item.el, scopeState, state, services);
+              const args = resolveInjectables(fn, item.expr, item.el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
+              await (fn as (...args: unknown[]) => void | Promise<void>)(...args);
+
+              if (fn.$context?.length) {
+                registerProvider(item.el, fn, scopeState);
+              }
             }
 
-            item.el.innerHTML = templateHtml;
-            item.el.setAttribute('data-g-prerendered', 'true');
-            // Index new elements from the template
-            indexTree(item.el);
+            if (options.template) {
+              const attrs = getTemplateAttrs(item.el);
+              let templateHtml: string;
+              if (typeof options.template === 'string') {
+                templateHtml = options.template;
+              } else {
+                const result = options.template(attrs, item.el);
+                templateHtml = result instanceof Promise ? await result : result;
+              }
+              item.el.innerHTML = templateHtml;
+              item.el.setAttribute('data-g-prerendered', 'true');
+              indexTree(item.el);
+            }
           }
         } else if (item.directive === null) {
           // Placeholder for g-scope - already processed above
@@ -514,5 +612,78 @@ export async function render(
     indexTree(document.body);
   }
 
+  if (timeoutId !== undefined) {
+    clearTimeout(timeoutId);
+  }
+
   return document.body.innerHTML;
+}
+
+/**
+ * Get the nesting depth of an async directive by walking up the DOM.
+ *
+ * @internal
+ */
+function getAsyncDepth(el: Element, depthMap: WeakMap<Element, number>): number {
+  let current: Element | null = el.parentElement;
+  while (current) {
+    const depth = depthMap.get(current);
+    if (depth !== undefined) {
+      return depth;
+    }
+    current = current.parentElement;
+  }
+  return 0;
+}
+
+/**
+ * Render fallback content for an async directive.
+ *
+ * @internal
+ */
+async function renderFallback(
+  el: Element,
+  fallback: FallbackOption,
+  options: { template?: unknown; [key: string]: unknown },
+  ssrMode: string,
+  streamCtx?: {
+    fn: Directive;
+    scopeState: Record<string, unknown>;
+    rootState: Record<string, unknown>;
+    expr: Expression;
+    using?: ContextKey<unknown>[];
+    streamPending: StreamPendingChunk[];
+  }
+): Promise<void> {
+  let fallbackHtml: string;
+  if (typeof fallback === 'string') {
+    fallbackHtml = fallback;
+  } else {
+    const attrs = getTemplateAttrs(el);
+    const result = fallback(attrs, el);
+    fallbackHtml = result instanceof Promise ? await result : result;
+  }
+
+  el.innerHTML = fallbackHtml;
+
+  if (ssrMode === 'stream') {
+    const asyncId = generateAsyncId();
+    el.setAttribute('data-g-async', 'streaming');
+    el.setAttribute('data-g-async-id', asyncId);
+
+    if (streamCtx) {
+      streamCtx.streamPending.push({
+        asyncId,
+        el,
+        fn: streamCtx.fn,
+        options: options as StreamPendingChunk['options'],
+        scopeState: streamCtx.scopeState,
+        rootState: streamCtx.rootState,
+        expr: streamCtx.expr,
+        using: streamCtx.using,
+      });
+    }
+  } else {
+    el.setAttribute('data-g-async', 'pending');
+  }
 }
