@@ -4,9 +4,9 @@ A lightweight, SSR-first reactive UI library for building web applications with 
 
 ## Features
 
-- **SSR-First Architecture** - Server-side rendering with seamless client hydration
-- **Declarative Directives** - Vue-inspired template syntax (`g-text`, `g-for`, `g-if`, etc.)
-- **Fine-Grained Reactivity** - Efficient updates without virtual DOM diffing
+- **[SSR-First Architecture](./docs/ssr.md)** - Server-side rendering with seamless client hydration
+- **[Declarative Directives](./docs/directives.md)** - Vue-inspired template syntax (`g-text`, `g-for`, `g-if`, etc.)
+- **[Fine-Grained Reactivity](./docs/reactivity.md)** - Efficient updates without virtual DOM diffing
 - **Zero Dependencies** - Core library has no runtime dependencies (linkedom for SSR only)
 - **TypeScript Native** - Full type safety with excellent IDE support
 
@@ -54,6 +54,8 @@ hydrate();
 ```
 
 ### Creating a Component Directive
+
+Directives receive their dependencies through [dependency injection](./docs/directives.md#dependency-injection) — parameter names like `$element` and `$scope` tell the framework what to provide:
 
 ```typescript
 import { directive, Directive } from 'gonia';

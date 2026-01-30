@@ -51,12 +51,11 @@ my-app/
 // src/directives/app.ts
 import { directive, Directive } from 'gonia';
 
+// Parameter names are dependency names — the framework provides them
 const app: Directive = ($element, $scope) => {
   $scope.title = 'Welcome';
   $scope.message = 'Hello from Gonia!';
 };
-
-app.$inject = ['$element', '$scope'];
 
 directive('my-app', app, { scope: true });
 ```

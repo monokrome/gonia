@@ -226,20 +226,92 @@ Structural directives run first because they may modify the DOM structure.
 
 ## Dependency Injection
 
-Directives can inject various dependencies:
+### What is Dependency Injection?
 
-| Injectable | Description |
-|------------|-------------|
-| `$expr` | The directive's attribute value |
-| `$element` | The DOM element |
-| `$eval` | Function to evaluate expressions |
-| `$scope` | Local reactive state object |
-| `$mode` | Current mode (SERVER or CLIENT) |
+Dependency injection (DI) is a pattern where a function declares what it
+needs by name, and the framework provides those values as arguments. When
+you write `($scope, $element) => { ... }`, you're asking for two specific
+things — the reactive scope and the DOM element — by their registered
+names. The framework looks up each name, resolves the corresponding
+value, and passes it in.
+
+This has two practical benefits:
+
+- **Decoupling** — your directive doesn't know or care where `$scope` or
+  `$element` come from. It just declares what it needs and the framework
+  provides it.
+- **Testability** — in tests, you pass mock objects directly. No framework
+  setup needed to test business logic.
+
+### How it Works in Gonia
+
+Name your function parameters after the dependencies you need. The
+framework matches parameter names and passes the corresponding values:
 
 ```typescript
-const myDirective: Directive = ($expr, $element, $eval, $scope, $mode) => {
-  // Use injected dependencies
+const counter: Directive = ($scope, $element) => {
+  $scope.count = 0;
+  $element.addEventListener('click', () => $scope.count++);
 };
+```
 
-myDirective.$inject = ['$expr', '$element', '$eval', '$scope', '$mode'];
+**Injection is name-based, not positional.** You list only what you need,
+in any order:
+
+```typescript
+// These are equivalent — order doesn't matter
+const a: Directive = ($scope, $element) => { ... };
+const b: Directive = ($element, $scope) => { ... };
+
+// Only need one dependency? Just ask for it
+const c: Directive = ($scope) => { ... };
+```
+
+### Available Injectables
+
+| Name          | Description                              |
+|---------------|------------------------------------------|
+| `$expr`       | The directive's attribute value          |
+| `$element`    | The target DOM element                   |
+| `$eval`       | Function to evaluate expressions         |
+| `$scope`      | Local reactive state object              |
+| `$rootState`  | Root reactive state (shared across tree) |
+| `$mode`       | Current mode (`'server'` or `'client'`)  |
+| `$templates`  | Template registry for `g-template`       |
+
+Custom dependencies can be provided via the `provide` directive option
+and resolved by descendant directives.
+
+### Testing with DI
+
+Because directives receive dependencies as arguments, testing is
+straightforward — pass mocks directly:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+
+describe('highlight directive', () => {
+  it('sets background color', () => {
+    const el = document.createElement('div');
+    const evalFn = () => 'red';
+
+    highlight('color' as Expression, el, evalFn);
+
+    expect(el.style.backgroundColor).toBe('red');
+  });
+});
+```
+
+No framework setup needed. The directive is just a function.
+
+### Minification Note
+
+Minifiers rename function parameters, which breaks name-based injection.
+The gonia Vite plugin handles this automatically by adding `$inject`
+arrays at build time. If you're not using the Vite plugin, add them
+manually:
+
+```typescript
+const counter: Directive = ($scope, $element) => { ... };
+counter.$inject = ['$scope', '$element'];
 ```
