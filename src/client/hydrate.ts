@@ -608,43 +608,47 @@ async function processAsyncDirectiveElement(
     }
   } else if (asyncState === 'pending' || asyncState === 'streaming' || asyncState === 'timeout') {
     // SSR rendered fallback — run fn, swap to template on success
-    try {
-      await (fn as (...args: unknown[]) => Promise<void>)(...args);
-    } catch (e) {
-      if (e instanceof FallbackSignal) return;
-      el.setAttribute('data-g-async', 'error');
-      return;
-    }
-
-    await renderTemplateSwap(el, options);
-    el.setAttribute('data-g-async', 'loaded');
+    const ok = await runAsyncAndSwap(el, fn, args, options);
+    if (!ok) return;
     el.removeAttribute('data-g-async-id');
-
-    if (fn.$context?.length) {
-      const state = getLocalState(el);
-      registerProvider(el, fn, state);
-    }
   } else {
     // Pure client (no SSR attribute) — render fallback first, then swap
     await renderClientFallback(el, options);
     el.setAttribute('data-g-async', 'pending');
 
-    try {
-      await (fn as (...args: unknown[]) => Promise<void>)(...args);
-    } catch (e) {
-      if (e instanceof FallbackSignal) return;
-      el.setAttribute('data-g-async', 'error');
-      return;
-    }
-
-    await renderTemplateSwap(el, options);
-    el.setAttribute('data-g-async', 'loaded');
-
-    if (fn.$context?.length) {
-      const state = getLocalState(el);
-      registerProvider(el, fn, state);
-    }
+    await runAsyncAndSwap(el, fn, args, options);
   }
+}
+
+/**
+ * Run an async directive function, swap to template on success, and register provider.
+ * Returns false if the fn threw FallbackSignal or an error.
+ *
+ * @internal
+ */
+async function runAsyncAndSwap(
+  el: Element,
+  fn: Directive,
+  args: unknown[],
+  options: { template?: unknown; [key: string]: unknown }
+): Promise<boolean> {
+  try {
+    await (fn as (...args: unknown[]) => Promise<void>)(...args);
+  } catch (e) {
+    if (e instanceof FallbackSignal) return false;
+    el.setAttribute('data-g-async', 'error');
+    return false;
+  }
+
+  await renderTemplateSwap(el, options);
+  el.setAttribute('data-g-async', 'loaded');
+
+  if (fn.$context?.length) {
+    const state = getLocalState(el);
+    registerProvider(el, fn, state);
+  }
+
+  return true;
 }
 
 /**
