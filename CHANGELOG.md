@@ -1,3 +1,12 @@
+## [0.3.7](https://github.com/monokrome/gonia/compare/v0.3.6...v0.3.7) (2026-01-30)
+
+
+### Bug Fixes
+
+* resolve happy-dom path for pnpm strict hoisting compatibility
+
+
+
 ## [0.3.6](https://github.com/monokrome/gonia/compare/v0.3.5...v0.3.6) (2026-01-30)
 
 
