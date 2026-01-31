@@ -12,6 +12,7 @@
 
 import type { Plugin } from 'vite';
 import { readFileSync } from 'fs';
+import { createRequire } from 'module';
 import { glob } from 'tinyglobby';
 import { resolve, relative, join } from 'path';
 
@@ -664,15 +665,36 @@ export function gonia(options: GoniaPluginOptions = {}): Plugin {
       return null;
     },
 
-    // Configure SSR
+    // Configure SSR: externalize happy-dom but provide a resolve alias
+    // so the consumer's SSR bundle can find it regardless of pnpm hoisting
     config(config) {
       const existing = config.ssr?.external;
       const external = Array.isArray(existing)
         ? [...existing, 'happy-dom']
         : ['happy-dom'];
 
+      let happyDomPath: string | undefined;
+      try {
+        const require = createRequire(import.meta.url);
+        happyDomPath = require.resolve('happy-dom');
+      } catch {
+        // happy-dom not found from gonia's context — skip alias
+      }
+
+      const existingAlias = config.resolve?.alias;
+      const alias = Array.isArray(existingAlias)
+        ? [...existingAlias, ...(happyDomPath ? [{ find: 'happy-dom', replacement: happyDomPath }] : [])]
+        : {
+            ...(existingAlias as Record<string, string> | undefined),
+            ...(happyDomPath ? { 'happy-dom': happyDomPath } : {})
+          };
+
       return {
         ...config,
+        resolve: {
+          ...config.resolve,
+          alias,
+        },
         ssr: {
           ...config.ssr,
           noExternal: ['gonia'],
