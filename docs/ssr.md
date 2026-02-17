@@ -12,16 +12,10 @@ Gonia is designed with SSR as a first-class feature. This guide covers how SSR w
 ## Basic SSR Setup
 
 ```typescript
-import { render, registerDirective } from 'gonia/server';
-import { text, show, cfor, cif, cclass } from 'gonia';
+import { render } from 'gonia/server';
 
-// Create and populate registry
-const registry = new Map();
-registerDirective(registry, 'text', text);
-registerDirective(registry, 'show', show);
-registerDirective(registry, 'for', cfor);
-registerDirective(registry, 'if', cif);
-registerDirective(registry, 'class', cclass);
+// Importing directives registers them globally
+import 'gonia/directives';
 
 // Initial state for SSR
 const state = {
@@ -29,8 +23,8 @@ const state = {
   items: ['Item 1', 'Item 2', 'Item 3']
 };
 
-// Render HTML
-const html = await render(template, state, registry);
+// Render HTML — globally registered directives are discovered automatically
+const html = await render(template, state, new Map());
 ```
 
 ## SSR Output Format
@@ -94,7 +88,7 @@ hydrate();
 
 ### What Hydration Does
 
-1. **Finds directive elements** - Scans DOM for `c-*` attributes
+1. **Finds directive elements** - Scans DOM for `g-*` attributes
 2. **Processes structural directives** - Sets up `g-for` and `g-if` reactivity
 3. **Attaches event handlers** - Connects `g-on` directives
 4. **Enables reactivity** - Wraps state in reactive proxies
@@ -112,7 +106,7 @@ For proper hydration, client state should match server state:
 ```typescript
 // Server
 const serverState = { count: 0, items: ['a', 'b'] };
-const html = await render(template, serverState, registry);
+const html = await render(template, serverState, new Map());
 
 // Client
 const clientState = reactive({ count: 0, items: ['a', 'b'] });
@@ -123,17 +117,16 @@ const clientState = reactive({ count: 0, items: ['a', 'b'] });
 
 ```typescript
 import express from 'express';
-import { render, registerDirective } from 'gonia/server';
-import { text, cfor } from 'gonia';
+import { render } from 'gonia/server';
+
+// Importing directives registers them globally
+import 'gonia/directives';
 
 const app = express();
-const registry = new Map();
-registerDirective(registry, 'text', text);
-registerDirective(registry, 'for', cfor);
 
 app.get('/', async (req, res) => {
   const state = await fetchData();
-  const html = await render(template, state, registry);
+  const html = await render(template, state, new Map());
 
   res.send(`
     <!DOCTYPE html>
@@ -155,18 +148,19 @@ Gonia can be used for SSG by rendering HTML at build time:
 
 ```typescript
 import { writeFileSync } from 'fs';
-import { render, registerDirective } from 'gonia/server';
+import { render } from 'gonia/server';
+
+// Importing directives registers them globally
+import 'gonia/directives';
 
 async function build() {
-  const registry = setupRegistry();
-
   const pages = [
     { path: '/index.html', state: { title: 'Home' } },
     { path: '/about.html', state: { title: 'About' } },
   ];
 
   for (const page of pages) {
-    const html = await render(template, page.state, registry);
+    const html = await render(template, page.state, new Map());
     writeFileSync(`dist${page.path}`, wrapHtml(html));
   }
 }
@@ -219,7 +213,7 @@ Verify SSR produces correct HTML:
 import { render } from 'gonia/server';
 
 test('renders list items', async () => {
-  const html = await render(template, { items: ['a', 'b'] }, registry);
+  const html = await render(template, { items: ['a', 'b'] }, new Map());
   expect(html).toContain('>a</li>');
   expect(html).toContain('>b</li>');
 });

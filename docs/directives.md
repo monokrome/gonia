@@ -188,6 +188,298 @@ When the expression is `null` or `undefined`, the attribute is removed. Otherwis
 <div g-bind:style="'color: ' + textColor">...</div>
 ```
 
+## Templates
+
+Templates let directives define their HTML structure. The `template` directive option accepts a string or a function and supports slots for content projection.
+
+### Static Templates
+
+Pass a string to render fixed HTML:
+
+```typescript
+directive('my-card', ($scope) => {
+  $scope.title = 'Default Title';
+}, {
+  scope: true,
+  template: '<div class="card"><slot></slot></div>'
+});
+```
+
+### Template Functions
+
+Pass a function to generate HTML dynamically from the element's attributes:
+
+```typescript
+directive('fancy-heading', null, {
+  template: ({ level, children }) => `<h${level}>${children}</h${level}>`
+});
+```
+
+The function receives a `TemplateAttrs` object:
+- `children` — the element's innerHTML before template transformation
+- All other keys are the element's HTML attributes
+
+```html
+<fancy-heading level="2">Section Title</fancy-heading>
+<!-- renders: <h2>Section Title</h2> -->
+```
+
+### Async Templates
+
+Template functions can return a `Promise<string>` for lazy loading:
+
+```typescript
+directive('lazy-widget', handler, {
+  template: () => import('./widget.html?raw').then(m => m.default)
+});
+```
+
+### Template-Only Directives
+
+Pass `null` as the directive function to create directives with no runtime behavior — pure templates:
+
+```typescript
+directive('fancy-heading', null, {
+  template: ({ level, children }) => `<h${level}>${children}</h${level}>`
+});
+```
+
+### g-template
+
+Loads a template by name at runtime from a template registry. Children are saved for slot transclusion before the template replaces the element's content.
+
+```html
+<div g-template="dialog">
+  <span slot="header">My Dialog Title</span>
+  <p>Dialog body content goes here.</p>
+</div>
+```
+
+The `$templates` injectable provides access to the registry. Templates can be sourced from inline `<template>` tags, fetched files, or in-memory maps.
+
+**Template registries:**
+
+```typescript
+import { createTemplateRegistry, createMemoryRegistry, createServerRegistry } from 'gonia';
+
+// Browser: inline <template> tags with fetch fallback
+const templates = createTemplateRegistry({ basePath: '/templates/' });
+
+// Testing / bundled: in-memory map
+const templates = createMemoryRegistry({
+  dialog: '<div class="dialog"><slot name="header"></slot><slot></slot></div>',
+  card: '<div class="card"><slot></slot></div>'
+});
+
+// Server: read from filesystem
+import { readFile } from 'fs/promises';
+const templates = createServerRegistry(
+  (path) => readFile(path, 'utf-8'),
+  './templates/'
+);
+```
+
+## Slots
+
+Slots are placeholders in templates that receive content from the element using the template. They enable composition by letting parent content project into child templates.
+
+### Default Slot
+
+Any child content without a `slot` attribute goes into the default slot:
+
+```typescript
+directive('my-card', null, {
+  template: '<div class="card"><slot></slot></div>'
+});
+```
+
+```html
+<my-card>
+  <p>This goes into the default slot.</p>
+</my-card>
+<!-- renders: <div class="card"><p>This goes into the default slot.</p></div> -->
+```
+
+### Named Slots
+
+Use `<slot name="...">` in templates and `slot="..."` on child elements to target specific slots:
+
+```typescript
+directive('my-layout', null, {
+  template: `
+    <header><slot name="header"></slot></header>
+    <main><slot></slot></main>
+    <footer><slot name="footer"></slot></footer>
+  `
+});
+```
+
+```html
+<my-layout>
+  <h1 slot="header">Page Title</h1>
+  <p>Main content goes to the default slot.</p>
+  <span slot="footer">Copyright 2026</span>
+</my-layout>
+```
+
+### g-slot Directive
+
+Use `g-slot` for dynamic slot names driven by expressions:
+
+```html
+<!-- Static slot (equivalent to <slot name="header"></slot>) -->
+<div g-slot="'header'"></div>
+
+<!-- Dynamic slot name from scope -->
+<slot g-slot="activeTab"></slot>
+```
+
+When `g-slot` has an expression, it wraps in a reactive effect so the slot content updates when the expression changes.
+
+### How Slot Extraction Works
+
+When a template is applied to an element:
+1. Children with a `slot="name"` attribute are collected into the named slot
+2. All other children go into the `default` slot
+3. `<slot>` elements (or `g-slot` directives) in the template are replaced with the matching content
+
+## Directive Options
+
+When registering a directive with `directive()`, the third argument is an options object:
+
+```typescript
+directive('my-component', handler, { scope: true, template: '...' });
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `scope` | `boolean` | Create an isolated reactive scope. Required for component-style directives. |
+| `template` | `string \| (attrs, el) => string` | HTML template — static string or function receiving `TemplateAttrs`. |
+| `provide` | `Record<string, unknown>` | DI provider overrides for descendant directives. |
+| `assign` | `Record<string, unknown>` | Values merged into the directive's scope. Requires `scope: true`. |
+| `using` | `ContextKey[]` | Context keys this directive depends on (resolved from ancestors). |
+| `fallback` | `string \| (attrs, el) => string` | Fallback content for async directives. See [Async Rendering](./async-rendering.md). |
+| `ssr` | `'await' \| 'fallback' \| 'stream'` | SSR mode for async directives. See [Async Rendering](./async-rendering.md). |
+
+### scope
+
+Creates an isolated reactive scope that inherits from the parent via prototype chain. Required for directives that manage their own state:
+
+```typescript
+directive('counter', ($scope) => {
+  $scope.count = 0;
+  $scope.increment = () => $scope.count++;
+}, { scope: true });
+```
+
+### provide
+
+Overrides DI values for all descendant directives. Useful for theming, testing with mocks, or scoping services to a subtree:
+
+```typescript
+directive('test-harness', null, {
+  scope: true,
+  provide: {
+    '$http': mockHttpClient,
+    'apiUrl': 'http://localhost:3000/test'
+  }
+});
+
+// Descendants receive the mock values
+directive('api-consumer', ($http, apiUrl) => {
+  $http.get(apiUrl + '/users');
+});
+```
+
+### assign
+
+Merges values into the directive's scope, making them available in template expressions. Requires `scope: true`:
+
+```typescript
+import styles from './button.module.css';
+
+directive('my-button', handler, {
+  scope: true,
+  assign: { $styles: styles }
+});
+```
+
+```html
+<my-button>
+  <div g-class="$styles.container">...</div>
+</my-button>
+```
+
+## Context (Provider / Consumer)
+
+Context lets ancestor directives share data with descendants through the DOM tree without passing through every intermediate element.
+
+### $context — Exposing Scope to Descendants
+
+When a directive declares `$context`, its scope values become available to descendant directives under those names:
+
+```typescript
+const themeProvider: Directive = ($scope) => {
+  $scope.mode = 'dark';
+  $scope.toggle = () => {
+    $scope.mode = $scope.mode === 'dark' ? 'light' : 'dark';
+  };
+};
+themeProvider.$context = ['theme'];
+
+directive('theme-provider', themeProvider, { scope: true });
+```
+
+Descendants can inject the context by name:
+
+```typescript
+const themedButton: Directive = ($element, theme) => {
+  $element.className = theme.mode;
+};
+
+directive('themed-button', themedButton);
+```
+
+### Typed Context Keys
+
+For type-safe context, use `createContextKey<T>()` with the `using` directive option:
+
+```typescript
+import { createContextKey, directive } from 'gonia';
+
+const ThemeContext = createContextKey<{ mode: 'light' | 'dark' }>('Theme');
+
+directive('themed-widget', ($element, $scope, theme) => {
+  $element.className = theme.mode;
+}, {
+  using: [ThemeContext]
+});
+```
+
+The `using` array declares which context keys the directive depends on. Resolved values are appended to the directive function parameters in order.
+
+### How Resolution Works
+
+When a directive requests a context value (either by name via `$context` or by key via `using`), Gonia walks up the DOM tree from the element to find the nearest ancestor that provides it. This is similar to React's Context or Vue's provide/inject.
+
+## configureDirective
+
+Modify options on an existing or not-yet-registered directive without access to the directive function:
+
+```typescript
+import { configureDirective } from 'gonia';
+
+// Add a template to a third-party directive
+configureDirective('app-header', {
+  template: '<header><slot></slot></header>'
+});
+
+// Override options on a built-in directive
+configureDirective('g-text', { scope: true });
+```
+
+If the directive hasn't been registered yet, the options are stored and merged when it is registered.
+
 ## Creating Custom Directives
 
 You can create custom directives for reusable behavior:
@@ -202,8 +494,6 @@ const highlight: Directive = ($expr, $element, $eval) => {
     ($element as HTMLElement).style.backgroundColor = color || '';
   });
 };
-
-highlight.$inject = ['$expr', '$element', '$eval'];
 
 directive('g-highlight', highlight);
 ```
@@ -267,6 +557,43 @@ const b: Directive = ($element, $scope) => { ... };
 const c: Directive = ($scope) => { ... };
 ```
 
+### How DI Works at Build Time
+
+Minifiers rename function parameters, which breaks name-based injection.
+The Gonia Vite plugin solves this automatically — it scans your
+`directive()` calls, reads the parameter names from the function
+declaration, and generates `$inject` arrays at build time via
+`transformInject()`.
+
+For example, this source code:
+
+```typescript
+const counter: Directive = ($scope, $element) => {
+  $scope.count = 0;
+};
+
+directive('my-counter', counter, { scope: true });
+```
+
+Is transformed at build time to:
+
+```typescript
+const counter: Directive = ($scope, $element) => {
+  $scope.count = 0;
+};
+
+counter.$inject = ['$scope', '$element'];
+directive('my-counter', counter, { scope: true });
+```
+
+**You don't need to write `$inject` arrays yourself.** The Vite plugin
+handles it. If you're not using the Vite plugin (e.g., in a plain Node.js
+script), add them manually:
+
+```typescript
+counter.$inject = ['$scope', '$element'];
+```
+
 ### Available Injectables
 
 | Name          | Description                              |
@@ -304,15 +631,3 @@ describe('highlight directive', () => {
 ```
 
 No framework setup needed. The directive is just a function.
-
-### Minification Note
-
-Minifiers rename function parameters, which breaks name-based injection.
-The gonia Vite plugin handles this automatically by adding `$inject`
-arrays at build time. If you're not using the Vite plugin, add them
-manually:
-
-```typescript
-const counter: Directive = ($scope, $element) => { ... };
-counter.$inject = ['$scope', '$element'];
-```

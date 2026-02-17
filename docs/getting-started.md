@@ -80,11 +80,10 @@ if (document.readyState === 'loading') {
 // src/server.ts
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
-import { render, registerDirective } from 'gonia/server';
-import { text } from 'gonia';
+import { render } from 'gonia/server';
 
-const registry = new Map();
-registerDirective(registry, 'text', text);
+// Importing directives registers them globally via directive()
+import './directives/app.js';
 
 const template = readFileSync('./index.html', 'utf-8');
 
@@ -95,8 +94,9 @@ const server = createServer(async (req, res) => {
   const match = template.match(/<my-app>([\s\S]*?)<\/my-app>/);
   const content = match ? match[1] : '';
 
-  // Server-side render
-  const rendered = await render(content, state, registry);
+  // Server-side render — directives registered via directive() are
+  // picked up from the global registry automatically
+  const rendered = await render(content, state, new Map());
 
   // Replace in template
   const html = template.replace(
