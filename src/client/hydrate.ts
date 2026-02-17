@@ -10,6 +10,7 @@ import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, registerDIProviders } from '../providers.js';
 import { FOR_PROCESSED_ATTR } from '../directives/for.js';
+import { PROCESSED_ATTR, setProcessServices } from '../process.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { ContextKey } from '../context-registry.js';
@@ -223,8 +224,11 @@ function processElement(
   el: Element,
   registry: DirectiveRegistry
 ): Promise<void> | void {
-  // Skip elements already processed by g-for (they have their own child scope)
+  // Skip elements already processed by g-for or processElementTree
   if (el.hasAttribute(FOR_PROCESSED_ATTR)) {
+    return;
+  }
+  if (el.hasAttribute(PROCESSED_ATTR)) {
     return;
   }
 
@@ -698,6 +702,9 @@ export async function init(
 ): Promise<void> {
   const reg = registry ?? getDefaultRegistry();
   cachedSelector = null;
+
+  // Share service registry with process.ts for DI resolution in processElementTree
+  setProcessServices(services);
 
   // Process custom element directives first (those with templates or scope)
   // This ensures templates are rendered and scopes exist before child directives run

@@ -79,6 +79,21 @@ export function createElementScope(
 }
 
 /**
+ * Store an externally-created scope on an element.
+ *
+ * @remarks
+ * Unlike {@link createElementScope} which creates a new scope,
+ * this stores an already-created scope (e.g., from `createScope`)
+ * so descendants can find it via DOM walking with {@link findParentScope}.
+ *
+ * @param el - The element to associate with the scope
+ * @param scope - The scope to store
+ */
+export function setElementScope(el: Element, scope: Record<string, unknown>): void {
+  elementScopes.set(el, scope);
+}
+
+/**
  * Get the scope for an element.
  *
  * @param el - The element

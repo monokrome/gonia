@@ -5,6 +5,11 @@ import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
 import { reactive } from '../src/reactivity.js';
 
+// Import directives to register them in the global registry
+import '../src/directives/text.js';
+import '../src/directives/class.js';
+import '../src/directives/show.js';
+
 describe('g-for directive', () => {
   let document: Document;
   let $eval: EvalFn;

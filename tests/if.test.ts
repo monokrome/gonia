@@ -5,6 +5,10 @@ import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
 import { reactive } from '../src/reactivity.js';
 
+// Import directives to register them in the global registry
+import '../src/directives/text.js';
+import '../src/directives/class.js';
+
 describe('g-if directive', () => {
   let document: Document;
   let $eval: EvalFn;
@@ -251,8 +255,8 @@ describe('g-if directive', () => {
   });
 
   describe('priority', () => {
-    it('should have STRUCTURAL priority', () => {
-      expect(cif.priority).toBe(1000);
+    it('should have STRUCTURAL_CONDITIONAL priority (higher than STRUCTURAL)', () => {
+      expect(cif.priority).toBe(1100);
     });
   });
 

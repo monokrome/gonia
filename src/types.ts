@@ -149,7 +149,9 @@ export interface Context {
  * (like g-if, g-for) need to run before behavioral ones.
  */
 export enum DirectivePriority {
-  /** Structural directives that control DOM presence (g-if, g-for) */
+  /** Conditional structural directives (g-if) — runs before iterative ones */
+  STRUCTURAL_CONDITIONAL = 1100,
+  /** Iterative structural directives (g-for) */
   STRUCTURAL = 1000,
   /** Template/transclusion directives */
   TEMPLATE = 500,
@@ -574,6 +576,19 @@ export function getDirectiveNames(): string[] {
  */
 export function clearDirectives(): void {
   directiveRegistry.clear();
+}
+
+/**
+ * Remove a single directive by name.
+ *
+ * @remarks
+ * Primarily useful for testing, to clean up a directive without
+ * clearing the entire registry.
+ *
+ * @param name - The directive attribute name (e.g., 'g-custom')
+ */
+export function removeDirective(name: string): void {
+  directiveRegistry.delete(name);
 }
 
 /**

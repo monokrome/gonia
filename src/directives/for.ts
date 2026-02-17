@@ -6,7 +6,10 @@
 
 import { directive, Directive, DirectivePriority, Expression, EvalFn, Mode } from '../types.js';
 import { effect, createEffectScope, EffectScope } from '../reactivity.js';
-import { processElementTree } from '../process.js';
+import { processElementTree, FOR_PROCESSED_ATTR } from '../process.js';
+
+// Re-export so existing consumers aren't broken
+export { FOR_PROCESSED_ATTR } from '../process.js';
 
 /**
  * Parse a g-for expression.
@@ -38,9 +41,6 @@ function parseForExpression(expr: string): {
     iterableName: match[3].trim()
   };
 }
-
-/** Attribute used to mark elements processed by g-for */
-export const FOR_PROCESSED_ATTR = 'data-g-for-processed';
 
 /** Attribute used to mark template content that should be skipped during SSR */
 export const FOR_TEMPLATE_ATTR = 'data-g-for-template';

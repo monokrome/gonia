@@ -120,6 +120,17 @@ export const cif: Directive<['$expr', '$element', '$eval', '$scope', '$mode']> =
   // Create persistent scope anchored to the placeholder
   const persistentScope = getOrCreateScope(placeholder, $scope);
 
+  // End marker for range-based cleanup. When co-located structural directives
+  // (e.g., g-for) replace the rendered element with multiple nodes, removing
+  // just the original element reference isn't enough. Instead, toggle-off
+  // removes everything between placeholder and endMarker.
+  const endMarker = placeholder.ownerDocument.createComment('');
+  if (placeholder.nextSibling) {
+    parent.insertBefore(endMarker, placeholder.nextSibling);
+  } else {
+    parent.appendChild(endMarker);
+  }
+
   let renderedElement: Element | null = null;
 
   effect(() => {
@@ -130,20 +141,25 @@ export const cif: Directive<['$expr', '$element', '$eval', '$scope', '$mode']> =
         renderedElement = template.cloneNode(true) as Element;
         renderedElement.setAttribute(IF_PROCESSED_ATTR, '');
 
+        // Insert into DOM before endMarker so co-located structural
+        // directives (e.g., g-for) can access parentNode and insert
+        // their own content before the endMarker
+        parent.insertBefore(renderedElement, endMarker);
+
         // Process with the persistent scope - state survives across toggles
         processElementTree(renderedElement, $scope, Mode.CLIENT, {
           existingScope: persistentScope
         });
-
-        if (placeholder.nextSibling) {
-          parent.insertBefore(renderedElement, placeholder.nextSibling);
-        } else {
-          parent.appendChild(renderedElement);
-        }
       }
     } else {
       if (renderedElement) {
-        renderedElement.remove();
+        // Remove all content between placeholder and endMarker
+        let node = placeholder.nextSibling;
+        while (node && node !== endMarker) {
+          const next = node.nextSibling;
+          parent.removeChild(node);
+          node = next;
+        }
         renderedElement = null;
         // Scope survives in persistentScope - ready for next render
       }
@@ -152,6 +168,6 @@ export const cif: Directive<['$expr', '$element', '$eval', '$scope', '$mode']> =
 };
 
 cif.$inject = ['$expr', '$element', '$eval', '$scope', '$mode'];
-cif.priority = DirectivePriority.STRUCTURAL;
+cif.priority = DirectivePriority.STRUCTURAL_CONDITIONAL;
 
 directive('g-if', cif);
