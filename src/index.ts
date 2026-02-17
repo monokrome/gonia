@@ -21,7 +21,7 @@ export { getInjectables, isContextKey } from './inject.js';
 export type { Injectable } from './inject.js';
 export { getRootScope, clearRootScope } from './scope.js';
 export { findAncestor } from './dom.js';
-export { processElementDirectives, processElementTree, PROCESSED_ATTR } from './process.js';
+export { processElementTree, PROCESSED_ATTR } from './process.js';
 export type { ProcessOptions } from './process.js';
 export {
   createContextKey,
