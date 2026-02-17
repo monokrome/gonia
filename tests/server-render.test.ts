@@ -830,3 +830,100 @@ describe('directive deduplication', () => {
     clearDirectives();
   });
 });
+
+describe('scoped eval regression', () => {
+  it('g-text inside scoped custom element should evaluate against element scope, not root state', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+
+    const counterFn: Directive = ($scope: Record<string, unknown>) => {
+      $scope.count = 42;
+      $scope.label = 'Counter';
+    };
+    counterFn.$inject = ['$scope'];
+
+    directive('scoped-counter', counterFn, {
+      scope: true,
+      template: '<span g-text="label"></span>: <span g-text="count"></span>'
+    });
+
+    const registry = new Map<string, Directive>();
+    registry.set('text', text);
+
+    const result = await render(
+      '<scoped-counter></scoped-counter>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('>Counter</span>');
+    expect(result).toContain('>42</span>');
+
+    clearDirectives();
+  });
+
+  it('g-class inside scoped custom element should evaluate against element scope', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+    const { cclass } = await import('../src/directives/class.js');
+
+    // Re-register since clearDirectives() in previous tests cleared the global registry
+    directive('g-class', cclass);
+
+    const widgetFn: Directive = ($scope: Record<string, unknown>) => {
+      $scope.isActive = true;
+      $scope.isDisabled = false;
+    };
+    widgetFn.$inject = ['$scope'];
+
+    directive('scoped-widget', widgetFn, {
+      scope: true,
+      template: '<div g-class="{ active: isActive, disabled: isDisabled }">content</div>'
+    });
+
+    const registry = new Map<string, Directive>();
+
+    const result = await render(
+      '<scoped-widget></scoped-widget>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('class="active"');
+    // 'disabled' class should NOT be added (isDisabled=false)
+    expect(result).not.toContain('class="active disabled"');
+
+    clearDirectives();
+  });
+
+  it('g-show inside scoped custom element should evaluate against element scope', async () => {
+    const { directive, clearDirectives } = await import('../src/types.js');
+
+    const panelFn: Directive = ($scope: Record<string, unknown>) => {
+      $scope.visible = true;
+      $scope.hidden = false;
+    };
+    panelFn.$inject = ['$scope'];
+
+    directive('scoped-panel', panelFn, {
+      scope: true,
+      template: '<div g-show="visible">Shown</div><div g-show="hidden">Hidden</div>'
+    });
+
+    const registry = new Map<string, Directive>();
+    registry.set('show', show);
+
+    const result = await render(
+      '<scoped-panel></scoped-panel>',
+      {},
+      registry
+    );
+
+    // visible=true: the "Shown" div should NOT have display:none
+    // hidden=false: the "Hidden" div SHOULD have display:none
+    // If both are hidden, the bug is that $eval used root state (where both are undefined/falsy)
+    const shownDiv = result.match(/<div[^>]*>Shown<\/div>/)?.[0] ?? '';
+    expect(shownDiv).not.toContain('display: none');
+    expect(result).toContain('style="display: none;"');
+
+    clearDirectives();
+  });
+});

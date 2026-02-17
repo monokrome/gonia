@@ -321,7 +321,7 @@ export async function render(
             } else {
               depthMap.set(item.el, depth + 1);
               const config = createServerResolverConfig(item.el, scopeState, state, services);
-              const args = resolveInjectables(fn!, item.expr, item.el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
+              const args = resolveInjectables(fn!, item.expr, item.el, scopeCtx.eval.bind(scopeCtx), config, options.using as ContextKey<unknown>[] | undefined);
 
               let didFallback = false;
               try {
@@ -358,7 +358,7 @@ export async function render(
             // Non-async path (original behavior)
             if (fn) {
               const config = createServerResolverConfig(item.el, scopeState, state, services);
-              const args = resolveInjectables(fn, item.expr, item.el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
+              const args = resolveInjectables(fn, item.expr, item.el, scopeCtx.eval.bind(scopeCtx), config, options.using as ContextKey<unknown>[] | undefined);
               await (fn as (...args: unknown[]) => void | Promise<void>)(...args);
 
               if (fn.$context?.length) {
@@ -387,7 +387,7 @@ export async function render(
           }
 
           const config = createServerResolverConfig(item.el, scopeState, state, services);
-          const args = resolveInjectables(item.directive!, item.expr, item.el, ctx.eval.bind(ctx), config, item.using);
+          const args = resolveInjectables(item.directive!, item.expr, item.el, scopeCtx.eval.bind(scopeCtx), config, item.using);
           await (item.directive as (...args: unknown[]) => void | Promise<void>)(...args);
 
           // Register as context provider if directive declares $context
