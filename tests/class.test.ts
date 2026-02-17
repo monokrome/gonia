@@ -5,7 +5,10 @@ import { createContext } from '../src/context.js';
 import { Mode, Expression, EvalFn } from '../src/types.js';
 import { reactive } from '../src/reactivity.js';
 
-describe('g-class directive', () => {
+describe.each([
+  ['client', Mode.CLIENT],
+  ['server', Mode.SERVER],
+] as const)('g-class directive (%s)', (_label, mode) => {
   let document: Document;
   let $eval: EvalFn;
 
@@ -15,7 +18,7 @@ describe('g-class directive', () => {
   });
 
   it('should add class when value is truthy', () => {
-    const ctx = createContext(Mode.CLIENT, { isActive: true });
+    const ctx = createContext(mode, { isActive: true });
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
 
@@ -25,7 +28,7 @@ describe('g-class directive', () => {
   });
 
   it('should remove class when value is falsy', () => {
-    const ctx = createContext(Mode.CLIENT, { isActive: false });
+    const ctx = createContext(mode, { isActive: false });
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
     el.classList.add('active');
@@ -36,7 +39,7 @@ describe('g-class directive', () => {
   });
 
   it('should handle multiple classes', () => {
-    const ctx = createContext(Mode.CLIENT, { isActive: true, hasError: false });
+    const ctx = createContext(mode, { isActive: true, hasError: false });
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
 
@@ -47,7 +50,7 @@ describe('g-class directive', () => {
   });
 
   it('should preserve static classes', () => {
-    const ctx = createContext(Mode.CLIENT, { isActive: true });
+    const ctx = createContext(mode, { isActive: true });
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
     el.classList.add('base-class');
@@ -59,7 +62,7 @@ describe('g-class directive', () => {
   });
 
   it('should handle hyphenated class names', () => {
-    const ctx = createContext(Mode.CLIENT, { hasError: true });
+    const ctx = createContext(mode, { hasError: true });
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
 
@@ -69,7 +72,7 @@ describe('g-class directive', () => {
   });
 
   it('should handle null value gracefully', () => {
-    const ctx = createContext(Mode.CLIENT, { classObj: null });
+    const ctx = createContext(mode, { classObj: null });
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
     el.classList.add('existing');
@@ -80,7 +83,7 @@ describe('g-class directive', () => {
   });
 
   it('should handle undefined value gracefully', () => {
-    const ctx = createContext(Mode.CLIENT, {});
+    const ctx = createContext(mode, {});
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
     el.classList.add('existing');
@@ -92,7 +95,7 @@ describe('g-class directive', () => {
 
   it('should react to state changes', () => {
     const state = reactive({ isActive: false });
-    const ctx = createContext(Mode.CLIENT, state);
+    const ctx = createContext(mode, state);
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
 
@@ -106,7 +109,7 @@ describe('g-class directive', () => {
   });
 
   it('should handle expression evaluation', () => {
-    const ctx = createContext(Mode.CLIENT, { count: 5 });
+    const ctx = createContext(mode, { count: 5 });
     $eval = ctx.eval.bind(ctx);
     const el = document.createElement('div');
 

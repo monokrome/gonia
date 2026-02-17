@@ -8,14 +8,17 @@ import { Mode, Expression, EvalFn } from '../src/types.js';
 import { resolveContext } from '../src/context-registry.js';
 import { SlotContentContext } from '../src/directives/template.js';
 
-describe('slot directive', () => {
+describe.each([
+  ['client', Mode.CLIENT],
+  ['server', Mode.SERVER],
+] as const)('slot directive (%s)', (_label, mode) => {
   let document: Document;
   let $eval: EvalFn;
 
   beforeEach(() => {
     const window = new Window();
     document = window.document as unknown as Document;
-    const ctx = createContext(Mode.SERVER, {});
+    const ctx = createContext(mode, {});
     $eval = ctx.eval.bind(ctx);
   });
 
@@ -53,7 +56,7 @@ describe('slot directive', () => {
     });
 
     it('should evaluate expression for dynamic slot name', () => {
-      const dynamicCtx = createContext(Mode.SERVER, { activeSlot: 'footer' });
+      const dynamicCtx = createContext(mode, { activeSlot: 'footer' });
       const dynamicEval = dynamicCtx.eval.bind(dynamicCtx);
       const slotEl = document.createElement('div');
 

@@ -583,15 +583,6 @@ describe.each([
       });
     });
   });
-});
-
-describe('processElementTree (client reactivity)', () => {
-  let document: Document;
-
-  beforeEach(() => {
-    const window = new Window();
-    document = window.document as unknown as Document;
-  });
 
   describe('directive reactivity', () => {
     it('should update g-text when state changes', () => {
@@ -599,7 +590,7 @@ describe('processElementTree (client reactivity)', () => {
       const element = document.createElement('span');
       element.setAttribute('g-text', 'count');
 
-      processElementTree(element, state, Mode.CLIENT);
+      processElementTree(element, state, mode);
 
       expect(element.textContent).toBe('0');
 
@@ -613,7 +604,7 @@ describe('processElementTree (client reactivity)', () => {
       const element = document.createElement('div');
       element.setAttribute('g-class', '{ active: active }');
 
-      processElementTree(element, state, Mode.CLIENT);
+      processElementTree(element, state, mode);
 
       expect(element.classList.contains('active')).toBe(false);
 
@@ -627,7 +618,7 @@ describe('processElementTree (client reactivity)', () => {
       const element = document.createElement('div') as HTMLElement;
       element.setAttribute('g-show', 'visible');
 
-      processElementTree(element, state, Mode.CLIENT);
+      processElementTree(element, state, mode);
 
       expect(element.style.display).toBe('');
 
@@ -635,6 +626,15 @@ describe('processElementTree (client reactivity)', () => {
 
       expect(element.style.display).toBe('none');
     });
+  });
+});
+
+describe('processElementTree (client structural reactivity)', () => {
+  let document: Document;
+
+  beforeEach(() => {
+    const window = new Window();
+    document = window.document as unknown as Document;
   });
 
   describe('structural directive reactivity', () => {
