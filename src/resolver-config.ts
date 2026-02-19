@@ -63,7 +63,7 @@ export function createClientResolverConfig(
   services: ServiceRegistry
 ): ResolverConfig {
   return {
-    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
+    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key, true),
     resolveState,
     resolveCustom: createCustomResolver(el, services),
     mode: 'client' as const
@@ -86,7 +86,7 @@ export function createServerResolverConfig(
   services: ServiceRegistry
 ): ResolverConfig {
   return {
-    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
+    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key, true),
     resolveState: () => scopeState,
     resolveRootState: () => rootState,
     resolveCustom: createCustomResolver(el, services),

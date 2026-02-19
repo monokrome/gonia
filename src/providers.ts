@@ -120,7 +120,7 @@ export function resolveFromDIProviders(
       return provideMap[name];
     }
     return undefined;
-  });
+  }, true);
 }
 
 /**
@@ -146,7 +146,7 @@ export function resolveFromProviders(
       return info.state;
     }
     return undefined;
-  });
+  }, true);
 }
 
 /**

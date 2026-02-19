@@ -496,6 +496,38 @@ describe.each([
       });
     });
 
+    describe('g-bind:* on same element as g-for', () => {
+      afterEach(() => {
+        clearElementScopes();
+        clearRootScope();
+      });
+
+      it('should apply g-bind:* using loop scope variables', () => {
+        const state = reactive({
+          items: [
+            { id: 'a1', name: 'Alice' },
+            { id: 'b2', name: 'Bob' }
+          ]
+        });
+
+        const container = document.createElement('ul');
+        const li = document.createElement('li');
+        li.setAttribute('g-for', 's in items');
+        li.setAttribute('g-bind:id', 's.id');
+        li.setAttribute('g-text', 's.name');
+        container.appendChild(li);
+
+        processElementTree(container, state, mode);
+
+        const items = container.querySelectorAll('li[data-g-for-processed]');
+        expect(items.length).toBe(2);
+        expect(items[0]?.getAttribute('id')).toBe('a1');
+        expect(items[0]?.textContent).toBe('Alice');
+        expect(items[1]?.getAttribute('id')).toBe('b2');
+        expect(items[1]?.textContent).toBe('Bob');
+      });
+    });
+
     describe('g-class inside g-for', () => {
       it('should apply class bindings to for-items', () => {
         const state = reactive({

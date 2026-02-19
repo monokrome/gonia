@@ -5,18 +5,17 @@
  */
 
 import { Window } from 'happy-dom';
-import { Mode, Directive, Expression, getDirective, RenderOptions, TemplateOption } from '../types.js';
+import { Mode, Directive, getDirective, RenderOptions, TemplateOption } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
 import { registerProvider, registerDIProviders } from '../providers.js';
-import { createElementScope, getElementScope } from '../scope.js';
+import { getElementScope } from '../scope.js';
 import { FOR_PROCESSED_ATTR, FOR_TEMPLATE_ATTR } from '../directives/for.js';
 import { IF_PROCESSED_ATTR } from '../directives/if.js';
-import { PROCESSED_ATTR } from '../process.js';
+import { PROCESSED_ATTR, prepareElementScope } from '../process.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { ContextKey } from '../context-registry.js';
-import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
-import { getTemplateAttrs, decodeHTMLEntities } from '../template-utils.js';
+import { getTemplateAttrs } from '../template-utils.js';
 import { processBindAttributesOnce } from '../bind-utils.js';
 import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
 import { isAsyncFunction, FallbackSignal } from '../async.js';
@@ -162,7 +161,6 @@ export async function render(
   document.body.innerHTML = html;
   indexTree(document.body, selector, registry, index, indexed);
 
-  const ctx = createContext(Mode.SERVER, state);
   const processed = new Set<Element>();
 
   // Async directive support: depth tracking and timeout
@@ -231,7 +229,7 @@ export async function render(
       // Sort directives on this element by priority (higher first)
       directives.sort((a, b) => b.priority - a.priority);
 
-      // Collect unique directive names for conflict detection
+      // Collect unique directive names for scope/assign preprocessing
       const directiveNameSet = new Set<string>();
       for (const item of directives) {
         if (!item.isNativeSlot && item.directive !== null) {
@@ -240,35 +238,17 @@ export async function render(
       }
       const directiveNames = [...directiveNameSet];
 
-      // Check if any directive needs scope - create once if so
-      // Must happen BEFORE g-scope and g-bind so assigns are available
-      let elementScope: Record<string, unknown> | null = null;
-      for (const name of directiveNames) {
-        if (directiveNeedsScope(name)) {
-          const parentScope = findServerScope(el, state);
-          elementScope = createElementScope(el, parentScope);
-          // Apply all assigns with conflict detection
-          applyAssigns(elementScope, directiveNames);
-          break;
-        }
-      }
+      // Preprocessing: scope creation, assigns, DI providers, g-scope
+      const parentScope = findServerScope(el, state);
+      const prepared = prepareElementScope(el, parentScope, Mode.SERVER, {
+        directiveNames,
+        decodeEntities: true
+      });
 
-      // Use element scope if created, otherwise find nearest ancestor
-      const scopeState = elementScope ?? findServerScope(el, state);
-      const scopeCtx = createContext(Mode.SERVER, scopeState);
+      const scopeState = prepared?.scope ?? parentScope;
+      const scopeCtx = prepared?.ctx ?? createContext(Mode.SERVER, scopeState);
 
-      // Process g-scope (inline scope initialization)
-      const scopeAttr = el.getAttribute('g-scope');
-      if (scopeAttr) {
-        const scopeValues = scopeCtx.eval<Record<string, unknown>>(decodeHTMLEntities(scopeAttr) as Expression);
-        if (scopeValues && typeof scopeValues === 'object') {
-          Object.assign(scopeState, scopeValues);
-        }
-      }
-
-      // Process g-bind:* attributes (dynamic attribute binding)
-      processBindAttributesOnce(el, scopeCtx, true);
-
+      // SSR directive execution loop (handles custom elements, async, etc.)
       for (const item of directives) {
         // Check if element was disconnected by a previous directive (e.g., g-for replacing it)
         if (!item.el.isConnected) {
@@ -285,10 +265,7 @@ export async function render(
 
           const { fn, options } = registration;
 
-          // Use pre-created scope or find existing
-          const scopeState = elementScope ?? findServerScope(item.el, state);
-
-          // Register DI providers if present
+          // Register DI providers if present (not handled by prepareElementScope for custom elements)
           if (options.provide) {
             registerDIProviders(item.el, options.provide);
           }
@@ -371,21 +348,10 @@ export async function render(
             }
           }
         } else if (item.directive === null) {
-          // Placeholder for g-scope - already processed above
+          // Placeholder for g-scope/g-bind — already processed by prepareElementScope
           continue;
         } else {
-          // Attribute directive - use pre-created scope or find existing
-          const scopeState = elementScope ?? findServerScope(item.el, state);
-
-          // Get registration options
-          const registration = getDirective(item.name);
-          const options = registration?.options ?? {};
-
-          // Register DI providers if present
-          if (options.provide) {
-            registerDIProviders(item.el, options.provide);
-          }
-
+          // Attribute directive
           const config = createServerResolverConfig(item.el, scopeState, state, services);
           const args = resolveInjectables(item.directive!, item.expr, item.el, scopeCtx.eval.bind(scopeCtx), config, item.using);
           await (item.directive as (...args: unknown[]) => void | Promise<void>)(...args);
@@ -395,6 +361,12 @@ export async function render(
             registerProvider(item.el, item.directive!, scopeState);
           }
         }
+      }
+
+      // Apply g-bind:* after the directive loop — if a directive detached
+      // the element, bindings are skipped (the directive handles its clones)
+      if (el.isConnected) {
+        processBindAttributesOnce(el, scopeCtx, true);
       }
     }
 

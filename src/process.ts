@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-import { Mode, Expression, Directive, DirectiveOptions, getDirective, DirectivePriority } from './types.js';
+import { Mode, Expression, Directive, DirectiveOptions, getDirective, DirectivePriority, Context } from './types.js';
 import { createContext } from './context.js';
 import { createScope, effect } from './reactivity.js';
 import { resolveDependencies } from './inject.js';
@@ -22,7 +22,8 @@ import { getLocalState, registerProvider, registerDIProviders, resolveFromProvid
 import { createElementScope, setElementScope, getElementScope } from './scope.js';
 import { processNativeSlot } from './directives/slot.js';
 import { applyAssigns, directiveNeedsScope } from './directive-utils.js';
-import { getBindAttributes, applyBindValue } from './bind-utils.js';
+import { getBindAttributes, applyBindValue, processBindAttributesOnce } from './bind-utils.js';
+import { decodeHTMLEntities } from './template-utils.js';
 import { createCustomResolver, ServiceRegistry } from './resolver-config.js';
 
 /** Attribute used to mark elements processed by g-for */
@@ -132,7 +133,7 @@ function getDirectivesForElement(el: Element): DirectiveMatch[] {
  */
 function buildResolverConfig(el: Element, scope: Record<string, unknown>, mode: Mode) {
   return {
-    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key),
+    resolveContext: (key: ContextKey<unknown>) => resolveContext(el, key, true),
     resolveState: () => scope,
     resolveRootState: () => scope,
     resolveCustom: createCustomResolver(el, moduleServices),
@@ -141,53 +142,68 @@ function buildResolverConfig(el: Element, scope: Record<string, unknown>, mode: 
 }
 
 /**
- * Process a single element with full directive support via global registry.
+ * Result of preparing an element for directive processing.
  *
  * @remarks
- * The single processing path for all descendant elements in processElementTree.
- * Handles native slots, g-scope, g-bind:*, ALL registered directives
- * (structural and non-structural), scope creation, DI resolution,
- * provider registration, and structural directive break.
+ * Contains scope, context, and matched directives. All processing paths
+ * (processDiscoveredElement, setupRootScope, hydrate processElement,
+ * render.ts per-element) use this to avoid duplicating preprocessing logic.
  *
- * Works in both client mode (reactive effects) and server mode (one-shot eval).
- *
- * @param el - The element to process
- * @param parentScope - The scope inherited from the parent element
- * @param mode - Execution mode
- * @returns true if a structural directive took ownership (caller should skip descendants)
- *
- * @internal
+ * g-bind:* is NOT applied here — it runs after the directive loop so that
+ * directives that detach the element (like g-for/g-if) naturally prevent
+ * g-bind from running on the original.
  */
-function processDiscoveredElement(
+export interface PreparedElement {
+  scope: Record<string, unknown>;
+  ctx: Context;
+  directives: DirectiveMatch[];
+}
+
+/**
+ * Options for prepareElementScope.
+ */
+export interface PrepareOptions {
+  /** Existing scope to reuse (e.g., persistent scope from g-if toggle) */
+  existingScope?: Record<string, unknown>;
+  /** Additional properties to merge into scope (e.g., g-for item/index) */
+  scopeAdditions?: Record<string, unknown>;
+  /** Pre-discovered directive names (render.ts passes these from indexTree) */
+  directiveNames?: string[];
+  /** Decode HTML entities in g-scope expressions (server mode) */
+  decodeEntities?: boolean;
+}
+
+/**
+ * Canonical preprocessing for an element before directive execution.
+ *
+ * @remarks
+ * Handles scope creation, assigns, DI providers, element scope storage,
+ * context creation, and g-scope evaluation. Returns null when the element
+ * has nothing to process (no directives, no g-scope, no g-bind).
+ *
+ * g-bind:* is intentionally NOT processed here. Callers apply g-bind
+ * after the directive loop, so directives that detach the element
+ * (any priority level) naturally prevent stale bindings.
+ *
+ * @param el - The element to prepare
+ * @param parentScope - Scope inherited from parent
+ * @param mode - Execution mode
+ * @param options - Configuration for scope source and directive discovery
+ * @returns Preprocessing result, or null if nothing to process
+ */
+export function prepareElementScope(
   el: Element,
   parentScope: Record<string, unknown>,
-  mode: Mode
-): boolean {
-  if (el.hasAttribute(PROCESSED_ATTR)) return false;
-  if (el.hasAttribute(FOR_PROCESSED_ATTR)) return false;
+  mode: Mode,
+  options: PrepareOptions = {}
+): PreparedElement | null {
+  const { existingScope, scopeAdditions = {}, decodeEntities } = options;
 
-  // Handle native <slot> elements
-  if (el.tagName === 'SLOT') {
-    processNativeSlot(el);
-    return false;
-  }
+  // 1. Directive discovery
+  const directives = options.directiveNames
+    ? [] as DirectiveMatch[]  // render.ts handles its own directive list
+    : getDirectivesForElement(el);
 
-  // Handle template placeholders from SSR (g-if with false condition)
-  if (el.tagName === 'TEMPLATE' && el.hasAttribute('data-g-if')) {
-    const registration = getDirective('g-if');
-    if (registration?.fn) {
-      const ctx = createContext(mode, parentScope);
-      const expr = el.getAttribute('data-g-if') || '';
-      const config = buildResolverConfig(el, parentScope, mode);
-      const args = resolveDependencies(
-        registration.fn, expr, el, ctx.eval.bind(ctx), config, registration.options.using
-      );
-      (registration.fn as (...a: unknown[]) => void)(...args);
-    }
-    return true;
-  }
-
-  const directives = getDirectivesForElement(el);
   const hasScopeAttr = el.hasAttribute('g-scope');
 
   let hasBindAttrs = false;
@@ -195,47 +211,88 @@ function processDiscoveredElement(
     if (el.attributes[i].name.startsWith('g-bind:')) { hasBindAttrs = true; break; }
   }
 
-  if (directives.length === 0 && !hasScopeAttr && !hasBindAttrs) return false;
+  // 2. Quick exit — nothing to process
+  if (directives.length === 0 && !options.directiveNames?.length && !hasScopeAttr && !hasBindAttrs) {
+    return null;
+  }
 
-  el.setAttribute(PROCESSED_ATTR, '');
+  // 3. Scope creation
+  let scope: Record<string, unknown>;
+  const hasScopeAdditions = Object.keys(scopeAdditions).length > 0;
 
-  let scope = parentScope;
-  let directiveCreatedScope = false;
-  let hitStructural = false;
+  if (existingScope) {
+    // Reuse existing scope (e.g., persistent scope from g-if toggle)
+    scope = hasScopeAdditions
+      ? createScope(existingScope, scopeAdditions)
+      : existingScope;
+  } else if (hasScopeAdditions) {
+    // Create child scope with additions (e.g., g-for item/index)
+    scope = createScope(parentScope, scopeAdditions);
+  } else {
+    // Lazy scope creation: only create if a directive needs it
+    scope = parentScope;
+    let directiveCreatedScope = false;
 
-  const directiveNames: string[] = [];
+    // Use provided directiveNames or extract from matched directives
+    const names = options.directiveNames
+      ?? directives.map(d => d.fullName);
 
-  for (const { fullName, options: opts } of directives) {
-    directiveNames.push(fullName);
+    for (const name of names) {
+      if (!directiveCreatedScope && directiveNeedsScope(name)) {
+        scope = createElementScope(el, scope);
+        directiveCreatedScope = true;
+      }
 
-    if (!directiveCreatedScope && directiveNeedsScope(fullName)) {
-      scope = createElementScope(el, scope);
-      directiveCreatedScope = true;
+      // Register DI providers
+      const registration = getDirective(name);
+      if (registration?.options.provide) {
+        registerDIProviders(el, registration.options.provide);
+      }
     }
 
-    if (opts.provide) {
-      registerDIProviders(el, opts.provide);
+    // 4. Apply assigns
+    if (directiveCreatedScope) {
+      applyAssigns(scope, names);
     }
   }
 
-  if (directiveCreatedScope) {
-    applyAssigns(scope, directiveNames);
-  }
-
+  // 5. Set element scope
   setElementScope(el, scope);
 
+  // 6. Context creation
   const ctx = createContext(mode, scope);
 
-  // Process g-scope (inline scope initialization)
+  // 7. g-scope attribute
   if (hasScopeAttr) {
     const scopeAttr = el.getAttribute('g-scope')!;
-    const scopeValues = ctx.eval<Record<string, unknown>>(scopeAttr as Expression);
+    const exprStr = decodeEntities
+      ? decodeHTMLEntities(scopeAttr)
+      : scopeAttr;
+    const scopeValues = ctx.eval<Record<string, unknown>>(exprStr as Expression);
     if (scopeValues && typeof scopeValues === 'object') {
       Object.assign(scope, scopeValues);
     }
   }
 
-  // Process g-bind:* attributes
+  return { scope, ctx, directives };
+}
+
+/**
+ * Apply g-bind:* attribute bindings on an element.
+ *
+ * @remarks
+ * Must be called AFTER the directive loop. If a directive detached the
+ * element (e.g., g-for removes and replaces with clones), the caller
+ * skips this — the directive handles bindings on its clones via
+ * processElementTree.
+ *
+ * In CLIENT mode, uses reactive effects. In SERVER mode, evaluates once.
+ *
+ * @param el - The element to apply bindings on
+ * @param ctx - The evaluation context
+ * @param mode - Execution mode
+ */
+export function applyElementBindings(el: Element, ctx: Context, mode: Mode): void {
   for (const [targetAttr, valueExpr] of getBindAttributes(el)) {
     const applyBinding = () => {
       const value = ctx.eval(valueExpr);
@@ -248,8 +305,38 @@ function processDiscoveredElement(
       applyBinding();
     }
   }
+}
 
-  // Process directives sequentially
+/**
+ * Execute the directive loop for an element.
+ *
+ * @remarks
+ * Processes directives in priority order (already sorted). After each
+ * synchronous directive, checks if the element was detached from its parent.
+ * If so, the loop breaks — the directive took ownership and lower-priority
+ * directives run on whatever replacement the directive created (via
+ * processElementTree).
+ *
+ * This makes the system agnostic about "structural" directives: any
+ * directive at any priority that detaches the element naturally stops
+ * the loop.
+ *
+ * @param el - The element being processed
+ * @param scope - The element's scope
+ * @param mode - Execution mode
+ * @param ctx - The evaluation context
+ * @param directives - Matched directives sorted by priority
+ * @returns Whether the element was detached, and any async chain
+ */
+export function executeDirectiveLoop(
+  el: Element,
+  scope: Record<string, unknown>,
+  mode: Mode,
+  ctx: Context,
+  directives: DirectiveMatch[]
+): { detached: boolean; chain?: Promise<void> } {
+  const parentBefore = el.parentNode;
+  let detached = false;
   let chain: Promise<void> | undefined;
 
   for (const { directive, expr, options: opts } of directives) {
@@ -266,8 +353,6 @@ function processDiscoveredElement(
       return result;
     };
 
-    const isStructural = directive.priority === DirectivePriority.STRUCTURAL;
-
     if (chain instanceof Promise) {
       chain = chain.then(() => {
         const result = invoke();
@@ -278,15 +363,92 @@ function processDiscoveredElement(
       if (result instanceof Promise) {
         chain = result;
       }
-    }
 
-    if (isStructural) {
-      hitStructural = true;
-      break;
+      // If the directive detached the element, stop processing
+      if (parentBefore && el.parentNode !== parentBefore) {
+        detached = true;
+        break;
+      }
     }
   }
 
-  return hitStructural;
+  return { detached, chain };
+}
+
+/**
+ * Result from processDiscoveredElement.
+ */
+export interface ProcessElementResult {
+  scope: Record<string, unknown>;
+  detached: boolean;
+  chain?: Promise<void>;
+}
+
+/**
+ * Process a single element with full directive support via global registry.
+ *
+ * @remarks
+ * The single processing path for all descendant elements in processElementTree.
+ * Also used by hydrate.ts processElement for client-side processing.
+ *
+ * Handles native slots, g-scope, g-bind:*, ALL registered directives,
+ * scope creation, DI resolution, provider registration, and element
+ * detachment detection.
+ *
+ * g-bind:* attributes are applied after the directive loop. If a directive
+ * detached the element (e.g., g-for removes and replaces with clones),
+ * g-bind is skipped — the directive handles bindings on its replacements.
+ *
+ * @param el - The element to process
+ * @param parentScope - The scope inherited from the parent element
+ * @param mode - Execution mode
+ * @returns Result with scope, detachment flag, and async chain; or null if skipped
+ *
+ * @internal
+ */
+export function processDiscoveredElement(
+  el: Element,
+  parentScope: Record<string, unknown>,
+  mode: Mode
+): ProcessElementResult | null {
+  if (el.hasAttribute(PROCESSED_ATTR)) return null;
+  if (el.hasAttribute(FOR_PROCESSED_ATTR)) return null;
+
+  // Handle native <slot> elements
+  if (el.tagName === 'SLOT') {
+    processNativeSlot(el);
+    return null;
+  }
+
+  // Handle template placeholders from SSR (g-if with false condition)
+  if (el.tagName === 'TEMPLATE' && el.hasAttribute('data-g-if')) {
+    const registration = getDirective('g-if');
+    if (registration?.fn) {
+      const ctx = createContext(mode, parentScope);
+      const expr = el.getAttribute('data-g-if') || '';
+      const config = buildResolverConfig(el, parentScope, mode);
+      const args = resolveDependencies(
+        registration.fn, expr, el, ctx.eval.bind(ctx), config, registration.options.using
+      );
+      (registration.fn as (...a: unknown[]) => void)(...args);
+    }
+    return { scope: parentScope, detached: true };
+  }
+
+  const prepared = prepareElementScope(el, parentScope, mode);
+  if (!prepared) return null;
+
+  el.setAttribute(PROCESSED_ATTR, '');
+
+  const { scope, ctx, directives } = prepared;
+  const { detached, chain } = executeDirectiveLoop(el, scope, mode, ctx, directives);
+
+  // Apply g-bind:* only if the element wasn't detached by a directive
+  if (!detached) {
+    applyElementBindings(el, ctx, mode);
+  }
+
+  return { scope, detached, chain };
 }
 
 /**
@@ -320,10 +482,10 @@ function processSubtree(
     if (child.hasAttribute(PROCESSED_ATTR)) continue;
     if (child.hasAttribute(FOR_PROCESSED_ATTR)) continue;
 
-    const wasStructural = processDiscoveredElement(child, parentScope, mode);
+    const result = processDiscoveredElement(child, parentScope, mode);
 
-    if (!wasStructural && child.children.length > 0) {
-      const childScope = getElementScope(child) ?? parentScope;
+    if (!result?.detached && child.children.length > 0) {
+      const childScope = result?.scope ?? getElementScope(child) ?? parentScope;
       processSubtree(child, childScope, mode);
     }
   }
@@ -345,54 +507,32 @@ function setupRootScope(
   mode: Mode,
   options: ProcessOptions
 ): Record<string, unknown> {
-  const { existingScope, scopeAdditions = {} } = options;
-
   el.setAttribute(PROCESSED_ATTR, '');
 
-  const scope = existingScope
-    ? (Object.keys(scopeAdditions).length > 0
-        ? createScope(existingScope, scopeAdditions)
-        : existingScope)
-    : createScope(parentScope, scopeAdditions);
+  const prepared = prepareElementScope(el, parentScope, mode, {
+    existingScope: options.existingScope,
+    scopeAdditions: options.scopeAdditions
+  });
 
-  setElementScope(el, scope);
-
-  const ctx = createContext(mode, scope);
-
-  // Process g-scope (inline scope initialization)
-  const scopeAttr = el.getAttribute('g-scope');
-  if (scopeAttr) {
-    const scopeValues = ctx.eval<Record<string, unknown>>(scopeAttr as Expression);
-    if (scopeValues && typeof scopeValues === 'object') {
-      Object.assign(scope, scopeValues);
-    }
+  if (!prepared) {
+    // Even with no directives, root needs scope setup
+    const { existingScope, scopeAdditions = {} } = options;
+    const scope = existingScope
+      ? (Object.keys(scopeAdditions).length > 0
+          ? createScope(existingScope, scopeAdditions)
+          : existingScope)
+      : createScope(parentScope, scopeAdditions);
+    setElementScope(el, scope);
+    return scope;
   }
 
-  // Process g-bind:* on root
-  for (const [targetAttr, valueExpr] of getBindAttributes(el)) {
-    const applyBinding = () => {
-      const value = ctx.eval(valueExpr);
-      applyBindValue(el, targetAttr, value);
-    };
+  const { scope, ctx, directives } = prepared;
+  const { detached } = executeDirectiveLoop(el, scope, mode, ctx, directives);
 
-    if (mode === Mode.CLIENT) {
-      effect(applyBinding);
-    } else {
-      applyBinding();
-    }
-  }
-
-  // Process root element's own directives via the registry
-  const directives = getDirectivesForElement(el);
-  for (const { directive, expr, options: opts } of directives) {
-    const config = buildResolverConfig(el, scope, mode);
-    const args = resolveDependencies(directive, expr, el, ctx.eval.bind(ctx), config, opts.using);
-    (directive as (...a: unknown[]) => void | Promise<void>)(...args);
-
-    if (directive.$context?.length) {
-      const state = getLocalState(el);
-      registerProvider(el, directive, state);
-    }
+  // Apply g-bind on root — root elements are clones from structural directives,
+  // so they should always get bindings unless something unexpected detached them.
+  if (!detached) {
+    applyElementBindings(el, ctx, mode);
   }
 
   return scope;

@@ -172,7 +172,7 @@ export function registerDirectiveElement(
 
       // Resolve dependencies using shared resolver
       const config = {
-        resolveContext: (key: ContextKey<unknown>) => resolveContext(this, key),
+        resolveContext: (key: ContextKey<unknown>) => resolveContext(this, key, true),
         resolveState: () => scope,
         mode: 'client' as const
       };

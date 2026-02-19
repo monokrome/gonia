@@ -4,5 +4,5 @@
  * @packageDocumentation
  */
 
-export { init, hydrate, mount, registerDirective, setElementContext } from './hydrate.js';
+export { init, hydrate, mount, registerDirective } from './hydrate.js';
 export type { DirectiveRegistry } from './hydrate.js';

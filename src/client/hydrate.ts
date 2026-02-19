@@ -4,20 +4,16 @@
  * @packageDocumentation
  */
 
-import { Mode, Directive, Expression, DirectivePriority, Context, getDirective, getDirectiveNames, FallbackOption } from '../types.js';
+import { Mode, Directive, Expression, getDirective, getDirectiveNames, FallbackOption, directive as registerGlobalDirective } from '../types.js';
 import { isAsyncFunction, FallbackSignal } from '../async.js';
 import { createContext } from '../context.js';
-import { processNativeSlot } from '../directives/slot.js';
 import { getLocalState, registerProvider, registerDIProviders } from '../providers.js';
-import { FOR_PROCESSED_ATTR } from '../directives/for.js';
-import { PROCESSED_ATTR, setProcessServices } from '../process.js';
+import { PROCESSED_ATTR, setProcessServices, processDiscoveredElement } from '../process.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
 import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { ContextKey } from '../context-registry.js';
-import { effect } from '../reactivity.js';
-import { applyAssigns, directiveNeedsScope } from '../directive-utils.js';
+import { applyAssigns } from '../directive-utils.js';
 import { getTemplateAttrs } from '../template-utils.js';
-import { applyBindValue, getBindAttributes } from '../bind-utils.js';
 import { createClientResolverConfig, ServiceRegistry } from '../resolver-config.js';
 
 // Built-in directives
@@ -49,9 +45,6 @@ let services: ServiceRegistry = new Map();
 
 /** Current MutationObserver (for cleanup) */
 let observer: MutationObserver | null = null;
-
-/** Context cache by element */
-const contextCache = new WeakMap<Element, Context>();
 
 /** Default registry with built-in directives */
 let defaultRegistry: DirectiveRegistry | null = null;
@@ -108,255 +101,18 @@ function getSelector(registry: DirectiveRegistry): string {
 }
 
 /**
- * Parsed directive info.
- */
-interface DirectiveMatch {
-  name: string;
-  directive: Directive;
-  expr: string;
-  using?: ContextKey<unknown>[];
-}
-
-/**
- * Get directives for an element, sorted by priority (highest first).
- *
- * @internal
- */
-function getDirectivesForElement(
-  el: Element,
-  registry: DirectiveRegistry
-): DirectiveMatch[] {
-  const directives: DirectiveMatch[] = [];
-
-  // Check local registry (built-in directives with g- prefix)
-  for (const [name, directive] of registry) {
-    const attr = el.getAttribute(`g-${name}`);
-    if (attr !== null) {
-      const registration = getDirective(`g-${name}`);
-      directives.push({
-        name,
-        directive,
-        expr: attr,
-        using: registration?.options.using
-      });
-    }
-  }
-
-  // Check global registry (custom directives)
-  for (const name of getDirectiveNames()) {
-    // Skip if already matched via local registry
-    if (directives.some(d => `g-${d.name}` === name)) continue;
-
-    const attr = el.getAttribute(name);
-    if (attr !== null) {
-      const registration = getDirective(name);
-      if (registration?.fn) {
-        directives.push({
-          name: name.replace(/^g-/, ''),
-          directive: registration.fn,
-          expr: attr,
-          using: registration.options.using
-        });
-      }
-    }
-  }
-
-  // Sort by priority (higher first)
-  directives.sort((a, b) => {
-    const priorityA = a.directive.priority ?? DirectivePriority.NORMAL;
-    const priorityB = b.directive.priority ?? DirectivePriority.NORMAL;
-    return priorityB - priorityA;
-  });
-
-  return directives;
-}
-
-/**
- * Get or create context for an element.
+ * Process directives on a single element via the unified processing path.
  *
  * @remarks
- * Walks up the DOM to find the nearest ancestor with a cached context,
- * then creates a context using the nearest scope.
+ * Delegates to processDiscoveredElement from process.ts, which handles
+ * all directive types (built-in and custom) in a single code path.
  *
  * @internal
  */
-function getContextForElement(el: Element): Context {
-  // Check cache first
-  const cached = contextCache.get(el);
-  if (cached) return cached;
-
-  // Walk up to find nearest context
-  let current = el.parentElement;
-  while (current) {
-    const parentCtx = contextCache.get(current);
-    if (parentCtx) {
-      const ctx = parentCtx.child({});
-      contextCache.set(el, ctx);
-      return ctx;
-    }
-    current = current.parentElement;
-  }
-
-  // Find nearest scope or create empty one
-  const scope = findParentScope(el, true) ?? createElementScope(el);
-  const ctx = createContext(Mode.CLIENT, scope);
-  contextCache.set(el, ctx);
-  return ctx;
-}
-
-/**
- * Set context for an element (used by directives that create child contexts).
- *
- * @internal
- */
-export function setElementContext(el: Element, ctx: Context): void {
-  contextCache.set(el, ctx);
-}
-
-/**
- * Process directives on a single element.
- * Returns a promise if any directive is async, otherwise void.
- * Directives on the same element are processed sequentially to handle dependencies.
- *
- * @internal
- */
-function processElement(
-  el: Element,
-  registry: DirectiveRegistry
-): Promise<void> | void {
-  // Skip elements already processed by g-for or processElementTree
-  if (el.hasAttribute(FOR_PROCESSED_ATTR)) {
-    return;
-  }
-  if (el.hasAttribute(PROCESSED_ATTR)) {
-    return;
-  }
-
-  // Handle native <slot> elements
-  if (el.tagName === 'SLOT') {
-    processNativeSlot(el);
-    return;
-  }
-
-  // Handle template placeholders from SSR (g-if with false condition)
-  if (el.tagName === 'TEMPLATE' && el.hasAttribute('data-g-if')) {
-    const ifDirective = registry.get('if');
-    if (ifDirective) {
-      const expr = el.getAttribute('data-g-if') || '';
-      const ctx = getContextForElement(el);
-      const config = createClientResolverConfig(el, () => findParentScope(el, true) ?? getLocalState(el), services);
-      const registration = getDirective('g-if');
-      const args = resolveInjectables(ifDirective, expr, el, ctx.eval.bind(ctx), config, registration?.options.using);
-      const result = (ifDirective as (...args: unknown[]) => void | Promise<void>)(...args);
-      if (result instanceof Promise) {
-        return result;
-      }
-    }
-    return;
-  }
-
-  const directives = getDirectivesForElement(el, registry);
-  const hasScopeAttr = el.hasAttribute('g-scope');
-  const hasBindAttrs = [...el.attributes].some(a => a.name.startsWith('g-bind:'));
-
-  // Skip if nothing to process
-  if (directives.length === 0 && !hasScopeAttr && !hasBindAttrs) return;
-
-  // Check if any directive needs a scope
-  let scope = findParentScope(el, true) ?? {};
-  let directiveCreatedScope = false;
-
-  // Collect unique directive names for conflict detection
-  const directiveNameSet = new Set<string>();
-
-  for (const { name } of directives) {
-    const fullName = `g-${name}`;
-    const isNew = !directiveNameSet.has(fullName);
-    directiveNameSet.add(fullName);
-
-    // Only process first occurrence
-    if (!isNew) continue;
-
-    const registration = getDirective(fullName);
-    if (!directiveCreatedScope && directiveNeedsScope(fullName)) {
-      // Create a new scope that inherits from parent
-      scope = createElementScope(el, scope);
-      directiveCreatedScope = true;
-    }
-
-    // Register DI providers if present
-    if (registration?.options.provide) {
-      registerDIProviders(el, registration.options.provide);
-    }
-  }
-
-  // Apply assigns with conflict detection
-  if (directiveCreatedScope) {
-    applyAssigns(scope, [...directiveNameSet]);
-  }
-
-  const ctx = createContext(Mode.CLIENT, scope);
-  contextCache.set(el, ctx);
-
-  // Process g-scope first (inline scope initialization)
-  if (hasScopeAttr) {
-    const scopeAttr = el.getAttribute('g-scope')!;
-    const scopeValues = ctx.eval<Record<string, unknown>>(scopeAttr as Expression);
-    if (scopeValues && typeof scopeValues === 'object') {
-      Object.assign(scope, scopeValues);
-    }
-  }
-
-  // Process g-bind:* attributes (dynamic attribute binding with reactivity)
-  for (const [targetAttr, valueExpr] of getBindAttributes(el)) {
-    effect(() => {
-      const value = ctx.eval(valueExpr);
-      applyBindValue(el, targetAttr, value);
-    });
-  }
-
-  // Process directives sequentially, handling async ones properly
-  let chain: Promise<void> | undefined;
-
-  for (const { directive, expr, using } of directives) {
-    const processDirective = () => {
-      const config = createClientResolverConfig(el, () => findParentScope(el, true) ?? getLocalState(el), services);
-      const args = resolveInjectables(directive, expr, el, ctx.eval.bind(ctx), config, using);
-      const result = (directive as (...args: unknown[]) => void | Promise<void>)(...args);
-
-      // Register as provider if directive declares $context
-      if (directive.$context?.length) {
-        const state = getLocalState(el);
-        registerProvider(el, directive, state);
-      }
-
-      return result;
-    };
-
-    // STRUCTURAL directives (like g-for) take ownership of the element.
-    // They remove the original and handle other directives on clones themselves.
-    const isStructural = directive.priority === DirectivePriority.STRUCTURAL;
-
-    if (chain instanceof Promise) {
-      // Previous directive was async, chain this one after it
-      chain = chain.then(() => {
-        const result = processDirective();
-        return result instanceof Promise ? result : undefined;
-      });
-    } else {
-      // Previous directive was sync (or this is the first)
-      const result = processDirective();
-      if (result instanceof Promise) {
-        chain = result;
-      }
-    }
-
-    if (isStructural) {
-      break;
-    }
-  }
-
-  return chain;
+function processElement(el: Element): Promise<void> | void {
+  const parentScope = findParentScope(el, true) ?? {};
+  const result = processDiscoveredElement(el, parentScope, Mode.CLIENT);
+  return result?.chain;
 }
 
 /**
@@ -367,15 +123,14 @@ function processElement(
  */
 function processNode(
   node: Element,
-  selector: string,
-  registry: DirectiveRegistry
+  selector: string
 ): Promise<void> | void {
   const matches: Element[] = node.matches?.(selector) ? [node] : [];
   const descendants = [...(node.querySelectorAll?.(selector) ?? [])];
   const promises: Promise<void>[] = [];
 
   for (const el of [...matches, ...descendants]) {
-    const result = processElement(el, registry);
+    const result = processElement(el);
     if (result instanceof Promise) {
       promises.push(result);
     }
@@ -405,10 +160,15 @@ export function registerDirective(
   registry.set(name, fn);
   cachedSelector = null;
 
+  // Ensure the directive is in the global registry
+  if (!getDirective(`g-${name}`)) {
+    registerGlobalDirective(`g-${name}`, fn);
+  }
+
   if (document.body && initialized) {
     const selector = `[g-${name}]`;
     for (const el of document.querySelectorAll(selector)) {
-      processElement(el, registry);
+      processElement(el);
     }
   }
 }
@@ -423,27 +183,6 @@ export function registerService(name: string, service: unknown): void {
   services.set(name, service);
 }
 
-/**
- * Initialize the client-side framework.
- *
- * @remarks
- * Processes all existing elements with directive attributes, then
- * sets up a MutationObserver to handle dynamically added elements.
- * Works for both SSR hydration and pure client-side rendering.
- *
- * State is now scoped per custom element. Each element with `scope: true`
- * creates its own state that child elements inherit via prototype chain.
- *
- * @param registry - The directive registry
- *
- * @example
- * ```ts
- * const registry = new Map();
- * registry.set('text', textDirective);
- *
- * init(registry);
- * ```
- */
 /**
  * Build a selector for custom element directives that need processing.
  *
@@ -697,6 +436,34 @@ async function renderClientFallback(
   }
 }
 
+/**
+ * Ensure local registry entries are in the global directive registry.
+ *
+ * @remarks
+ * The local DirectiveRegistry predates the global registry. This bridges
+ * them so processDiscoveredElement (which uses the global registry) can
+ * find all directives.
+ *
+ * @internal
+ */
+function syncRegistryToGlobal(registry: DirectiveRegistry): void {
+  for (const [name, fn] of registry) {
+    if (!getDirective(`g-${name}`)) {
+      registerGlobalDirective(`g-${name}`, fn);
+    }
+  }
+}
+
+/**
+ * Initialize the client-side framework.
+ *
+ * @remarks
+ * Processes all existing elements with directive attributes, then
+ * sets up a MutationObserver to handle dynamically added elements.
+ * Works for both SSR hydration and pure client-side rendering.
+ *
+ * @param registry - The directive registry
+ */
 export async function init(
   registry?: DirectiveRegistry
 ): Promise<void> {
@@ -705,6 +472,9 @@ export async function init(
 
   // Share service registry with process.ts for DI resolution in processElementTree
   setProcessServices(services);
+
+  // Ensure local registry entries are globally available
+  syncRegistryToGlobal(reg);
 
   // Process custom element directives first (those with templates or scope)
   // This ensures templates are rendered and scopes exist before child directives run
@@ -722,7 +492,7 @@ export async function init(
     if (!el.isConnected) {
       continue;
     }
-    const result = processElement(el, reg);
+    const result = processElement(el);
     if (result instanceof Promise) {
       promises.push(result);
     }
@@ -743,7 +513,7 @@ export async function init(
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
-        processNode(node as Element, selector, reg);
+        processNode(node as Element, selector);
       }
     }
   });
@@ -753,7 +523,7 @@ export async function init(
   // Streaming hydration hook: called by inline scripts from renderStream()
   if (typeof window !== 'undefined') {
     (window as unknown as Record<string, unknown>).__gonia_hydrate = (el: Element) => {
-      processNode(el, selector, reg);
+      processNode(el, selector);
     };
   }
 

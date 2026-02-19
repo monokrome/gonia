@@ -629,6 +629,52 @@ describe('regression tests', () => {
     expect(result).not.toContain('NO_COLOR');
   });
 
+  it('g-bind:* on same element as g-for should use loop scope (issue: bind evaluated before g-for created scope)', async () => {
+    const { cfor } = await import('../src/directives/for.js');
+    const registry = new Map<string, Directive>();
+    registry.set('for', cfor);
+    registry.set('text', text);
+
+    const result = await render(
+      '<li g-for="s in items" g-bind:id="s.id" g-text="s.name"></li>',
+      { items: [{ id: 'a1', name: 'Alice' }, { id: 'b2', name: 'Bob' }] },
+      registry
+    );
+
+    expect(result).toContain('id="a1"');
+    expect(result).toContain('id="b2"');
+    expect(result).toContain('>Alice</li>');
+    expect(result).toContain('>Bob</li>');
+  });
+
+  it('$context should be visible to sibling directives on same element (issue: findAncestor skipped self)', async () => {
+    const registry = new Map<string, Directive>();
+
+    const provider: Directive = ($scope: Record<string, unknown>) => {
+      $scope.value = 'provided';
+    };
+    provider.$inject = ['$scope'];
+    provider.$context = ['data'];
+    provider.priority = 100;
+
+    const consumer: Directive = ($element: Element, data: Record<string, unknown>) => {
+      ($element as HTMLElement).textContent = data?.value as string ?? 'NOT_FOUND';
+    };
+    consumer.$inject = ['$element', 'data'];
+
+    registry.set('provider', provider);
+    registry.set('consumer', consumer);
+
+    const result = await render(
+      '<div g-provider="" g-consumer=""></div>',
+      {},
+      registry
+    );
+
+    expect(result).toContain('provided');
+    expect(result).not.toContain('NOT_FOUND');
+  });
+
   it('using option should work for ContextKey injection (issue: $inject contained object references)', async () => {
     // Bug: ContextKey objects in $inject don't survive minification.
     // The using option must be used for ContextKey-based injection.
