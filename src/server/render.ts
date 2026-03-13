@@ -8,16 +8,14 @@ import { Window } from 'happy-dom';
 import { Mode, Directive, getDirective, RenderOptions, TemplateOption } from '../types.js';
 import { createContext } from '../context.js';
 import { processNativeSlot } from '../directives/slot.js';
-import { registerProvider, registerDIProviders } from '../providers.js';
+import { registerDIProviders } from '../providers.js';
 import { getElementScope } from '../scope.js';
 import { FOR_PROCESSED_ATTR, FOR_TEMPLATE_ATTR } from '../directives/for.js';
 import { IF_PROCESSED_ATTR } from '../directives/if.js';
-import { PROCESSED_ATTR, prepareElementScope } from '../process.js';
-import { resolveDependencies as resolveInjectables } from '../inject.js';
+import { PROCESSED_ATTR, prepareElementScope, invokeDirective, renderDirectiveTemplate } from '../process.js';
 import { ContextKey } from '../context-registry.js';
-import { getTemplateAttrs } from '../template-utils.js';
 import { processBindAttributesOnce } from '../bind-utils.js';
-import { createServerResolverConfig, ServiceRegistry } from '../resolver-config.js';
+import { ServiceRegistry } from '../resolver-config.js';
 import { isAsyncFunction, FallbackSignal } from '../async.js';
 import { getSelector, indexTree } from './index-tree.js';
 import { getAsyncDepth, renderFallback } from './async-render.js';
@@ -100,15 +98,7 @@ async function renderTemplate(
   index: IndexedDirective[],
   indexed: Set<Element>
 ): Promise<void> {
-  const attrs = getTemplateAttrs(el);
-  let templateHtml: string;
-  if (typeof template === 'string') {
-    templateHtml = template;
-  } else {
-    const result = template(attrs, el);
-    templateHtml = result instanceof Promise ? await result : result;
-  }
-  el.innerHTML = templateHtml;
+  await renderDirectiveTemplate(el, template);
   el.setAttribute('data-g-prerendered', 'true');
   indexTree(el, selector, registry, index, indexed);
 }
@@ -270,6 +260,12 @@ export async function render(
             registerDIProviders(item.el, options.provide);
           }
 
+          const invokeOpts = fn ? {
+            fn, expr: item.expr, el: item.el, scope: scopeState,
+            mode: Mode.SERVER, using: options.using as ContextKey<unknown>[] | undefined,
+            rootState: state, services, ctx: scopeCtx
+          } : null;
+
           // Async directive handling: check if fn is async and fallback is configured
           const fnIsAsync = fn && isAsyncFunction(fn);
           const hasFallback = options.fallback !== undefined;
@@ -289,7 +285,6 @@ export async function render(
             // await mode: run the fn, await it, render template
             const depth = getAsyncDepth(item.el, depthMap);
             if (depth >= maxDepth || aborted) {
-              // Over depth or timed out: render fallback
               await renderFallback(item.el, options.fallback!, options, 'await');
               item.el.setAttribute('data-g-async', aborted ? 'timeout' : 'timeout');
               if (depth >= maxDepth) {
@@ -297,14 +292,11 @@ export async function render(
               }
             } else {
               depthMap.set(item.el, depth + 1);
-              const config = createServerResolverConfig(item.el, scopeState, state, services);
-              const args = resolveInjectables(fn!, item.expr, item.el, scopeCtx.eval.bind(scopeCtx), config, options.using as ContextKey<unknown>[] | undefined);
 
               let didFallback = false;
               try {
-                await (fn as (...args: unknown[]) => Promise<void>)(...args);
+                await invokeDirective(invokeOpts!);
 
-                // Check if timeout fired while fn was running
                 if (aborted) {
                   didFallback = true;
                   await renderFallback(item.el, options.fallback!, options, 'await');
@@ -321,10 +313,6 @@ export async function render(
               }
 
               if (!didFallback) {
-                if (fn!.$context?.length) {
-                  registerProvider(item.el, fn!, scopeState);
-                }
-
                 if (options.template) {
                   await renderTemplate(item.el, options.template, selector, registry, index, indexed);
                 }
@@ -332,15 +320,9 @@ export async function render(
               }
             }
           } else {
-            // Non-async path (original behavior)
-            if (fn) {
-              const config = createServerResolverConfig(item.el, scopeState, state, services);
-              const args = resolveInjectables(fn, item.expr, item.el, scopeCtx.eval.bind(scopeCtx), config, options.using as ContextKey<unknown>[] | undefined);
-              await (fn as (...args: unknown[]) => void | Promise<void>)(...args);
-
-              if (fn.$context?.length) {
-                registerProvider(item.el, fn, scopeState);
-              }
+            // Non-async path
+            if (invokeOpts) {
+              await invokeDirective(invokeOpts);
             }
 
             if (options.template) {
@@ -352,14 +334,11 @@ export async function render(
           continue;
         } else {
           // Attribute directive
-          const config = createServerResolverConfig(item.el, scopeState, state, services);
-          const args = resolveInjectables(item.directive!, item.expr, item.el, scopeCtx.eval.bind(scopeCtx), config, item.using);
-          await (item.directive as (...args: unknown[]) => void | Promise<void>)(...args);
-
-          // Register as context provider if directive declares $context
-          if (item.directive!.$context?.length) {
-            registerProvider(item.el, item.directive!, scopeState);
-          }
+          await invokeDirective({
+            fn: item.directive!, expr: item.expr, el: item.el,
+            scope: scopeState, mode: Mode.SERVER,
+            using: item.using, rootState: state, services, ctx: scopeCtx
+          });
         }
       }
 

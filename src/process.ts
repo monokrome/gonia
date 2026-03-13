@@ -13,18 +13,18 @@
  * @packageDocumentation
  */
 
-import { Mode, Expression, Directive, DirectiveOptions, getDirective, DirectivePriority, Context } from './types.js';
+import { Mode, Expression, Directive, DirectiveOptions, TemplateOption, getDirective, DirectivePriority, Context } from './types.js';
 import { createContext } from './context.js';
 import { createScope, effect } from './reactivity.js';
 import { resolveDependencies } from './inject.js';
 import { resolveContext, ContextKey } from './context-registry.js';
-import { getLocalState, registerProvider, registerDIProviders, resolveFromProviders, resolveFromDIProviders } from './providers.js';
+import { registerProvider, registerDIProviders } from './providers.js';
 import { createElementScope, setElementScope, getElementScope } from './scope.js';
 import { processNativeSlot } from './directives/slot.js';
 import { applyAssigns, directiveNeedsScope } from './directive-utils.js';
 import { getBindAttributes, applyBindValue, processBindAttributesOnce } from './bind-utils.js';
-import { decodeHTMLEntities } from './template-utils.js';
-import { createCustomResolver, ServiceRegistry } from './resolver-config.js';
+import { decodeHTMLEntities, getTemplateAttrs } from './template-utils.js';
+import { createCustomResolver, createClientResolverConfig, createServerResolverConfig, ServiceRegistry } from './resolver-config.js';
 
 /** Attribute used to mark elements processed by g-for */
 export const FOR_PROCESSED_ATTR = 'data-g-for-processed';
@@ -139,6 +139,75 @@ function buildResolverConfig(el: Element, scope: Record<string, unknown>, mode: 
     resolveCustom: createCustomResolver(el, moduleServices),
     mode: mode === Mode.SERVER ? 'server' as const : 'client' as const
   };
+}
+
+/**
+ * Options for invoking a single directive.
+ */
+export interface InvokeDirectiveOptions {
+  fn: Directive;
+  expr: Expression | string;
+  el: Element;
+  scope: Record<string, unknown>;
+  mode: Mode;
+  using?: ContextKey<unknown>[];
+  rootState?: Record<string, unknown>;
+  services?: ServiceRegistry;
+  ctx?: Context;
+}
+
+/**
+ * Invoke a directive: resolve DI, call fn, register provider.
+ *
+ * @remarks
+ * Single shared path for directive invocation used by all processing
+ * paths (client, server, structural clones). Handles dependency
+ * resolution, function invocation, and provider registration.
+ *
+ * @param options - Invocation configuration
+ * @returns The directive's return value (void or Promise)
+ */
+export function invokeDirective(options: InvokeDirectiveOptions): void | Promise<void> {
+  const { fn, expr, el, scope, mode, using, services } = options;
+  const rootState = options.rootState ?? scope;
+  const ctx = options.ctx ?? createContext(mode, scope);
+
+  const config = mode === Mode.SERVER
+    ? createServerResolverConfig(el, scope, rootState, services ?? moduleServices)
+    : createClientResolverConfig(el, () => scope, services ?? moduleServices);
+
+  const args = resolveDependencies(fn, expr, el, ctx.eval.bind(ctx), config, using);
+  const result = (fn as (...a: unknown[]) => void | Promise<void>)(...args);
+
+  if (fn.$context?.length) {
+    registerProvider(el, fn, scope);
+  }
+
+  return result;
+}
+
+/**
+ * Resolve and render a template option into an element.
+ *
+ * @param el - The target element
+ * @param template - Template string or function
+ * @returns Promise if the template function is async
+ */
+export async function renderDirectiveTemplate(
+  el: Element,
+  template: TemplateOption
+): Promise<void> {
+  const attrs = getTemplateAttrs(el);
+  let html: string;
+
+  if (typeof template === 'string') {
+    html = template;
+  } else {
+    const result = template(attrs, el);
+    html = result instanceof Promise ? await result : result;
+  }
+
+  el.innerHTML = html;
 }
 
 /**
@@ -340,18 +409,15 @@ export function executeDirectiveLoop(
   let chain: Promise<void> | undefined;
 
   for (const { directive, expr, options: opts } of directives) {
-    const invoke = () => {
-      const config = buildResolverConfig(el, scope, mode);
-      const args = resolveDependencies(directive, expr, el, ctx.eval.bind(ctx), config, opts.using);
-      const result = (directive as (...a: unknown[]) => void | Promise<void>)(...args);
-
-      if (directive.$context?.length) {
-        const state = getLocalState(el);
-        registerProvider(el, directive, state);
-      }
-
-      return result;
-    };
+    const invoke = () => invokeDirective({
+      fn: directive,
+      expr,
+      el,
+      scope,
+      mode,
+      using: opts.using,
+      ctx
+    });
 
     if (chain instanceof Promise) {
       chain = chain.then(() => {

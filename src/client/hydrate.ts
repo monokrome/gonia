@@ -6,15 +6,13 @@
 
 import { Mode, Directive, Expression, getDirective, getDirectiveNames, FallbackOption, directive as registerGlobalDirective } from '../types.js';
 import { isAsyncFunction, FallbackSignal } from '../async.js';
-import { createContext } from '../context.js';
-import { getLocalState, registerProvider, registerDIProviders } from '../providers.js';
-import { PROCESSED_ATTR, setProcessServices, processDiscoveredElement } from '../process.js';
+import { registerDIProviders } from '../providers.js';
+import { PROCESSED_ATTR, setProcessServices, processDiscoveredElement, invokeDirective, renderDirectiveTemplate } from '../process.js';
 import { findParentScope, createElementScope, getElementScope } from '../scope.js';
-import { resolveDependencies as resolveInjectables } from '../inject.js';
 import { ContextKey } from '../context-registry.js';
 import { applyAssigns } from '../directive-utils.js';
 import { getTemplateAttrs } from '../template-utils.js';
-import { createClientResolverConfig, ServiceRegistry } from '../resolver-config.js';
+import { ServiceRegistry } from '../resolver-config.js';
 
 // Built-in directives
 import { text } from '../directives/text.js';
@@ -280,11 +278,11 @@ async function processDirectiveElements(): Promise<void> {
     } else {
       // 3. Call directive function if present (initializes state)
       if (fn) {
-        const ctx = createContext(Mode.CLIENT, scope);
-        const config = createClientResolverConfig(el, () => scope, services);
-
-        const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using);
-        const result = fn(...args);
+        const result = invokeDirective({
+          fn, expr: '' as Expression, el, scope,
+          mode: Mode.CLIENT, using: options.using as ContextKey<unknown>[] | undefined,
+          services
+        });
 
         if (result instanceof Promise) {
           await result;
@@ -296,17 +294,7 @@ async function processDirectiveElements(): Promise<void> {
         if (el.hasAttribute('data-g-prerendered')) {
           el.removeAttribute('data-g-prerendered');
         } else {
-          const attrs = getTemplateAttrs(el);
-          let html: string;
-
-          if (typeof options.template === 'string') {
-            html = options.template;
-          } else {
-            const result = options.template(attrs, el);
-            html = result instanceof Promise ? await result : result;
-          }
-
-          el.innerHTML = html;
+          await renderDirectiveTemplate(el, options.template);
         }
       }
     }
@@ -325,14 +313,17 @@ async function processAsyncDirectiveElement(
   scope: Record<string, unknown>,
   asyncState: string | null
 ): Promise<void> {
-  const ctx = createContext(Mode.CLIENT, scope);
-  const config = createClientResolverConfig(el, () => scope, services);
-  const args = resolveInjectables(fn, '', el, ctx.eval.bind(ctx), config, options.using as ContextKey<unknown>[] | undefined);
+  const invokeOpts = {
+    fn, expr: '' as Expression, el, scope,
+    mode: Mode.CLIENT,
+    using: options.using as ContextKey<unknown>[] | undefined,
+    services
+  };
 
   if (asyncState === 'loaded') {
     // SSR already rendered the template — just run fn for reactivity setup
     try {
-      await (fn as (...args: unknown[]) => Promise<void>)(...args);
+      await invokeDirective(invokeOpts);
     } catch (e) {
       if (e instanceof FallbackSignal) {
         await renderClientFallback(el, options);
@@ -344,14 +335,9 @@ async function processAsyncDirectiveElement(
     if (el.hasAttribute('data-g-prerendered')) {
       el.removeAttribute('data-g-prerendered');
     }
-
-    if (fn.$context?.length) {
-      const state = getLocalState(el);
-      registerProvider(el, fn, state);
-    }
   } else if (asyncState === 'pending' || asyncState === 'streaming' || asyncState === 'timeout') {
     // SSR rendered fallback — run fn, swap to template on success
-    const ok = await runAsyncAndSwap(el, fn, args, options);
+    const ok = await runAsyncAndSwap(el, fn, scope, invokeOpts, options);
     if (!ok) return;
     el.removeAttribute('data-g-async-id');
   } else {
@@ -359,7 +345,7 @@ async function processAsyncDirectiveElement(
     await renderClientFallback(el, options);
     el.setAttribute('data-g-async', 'pending');
 
-    await runAsyncAndSwap(el, fn, args, options);
+    await runAsyncAndSwap(el, fn, scope, invokeOpts, options);
   }
 }
 
@@ -372,48 +358,24 @@ async function processAsyncDirectiveElement(
 async function runAsyncAndSwap(
   el: Element,
   fn: Directive,
-  args: unknown[],
+  scope: Record<string, unknown>,
+  invokeOpts: Parameters<typeof invokeDirective>[0],
   options: { template?: unknown; [key: string]: unknown }
 ): Promise<boolean> {
   try {
-    await (fn as (...args: unknown[]) => Promise<void>)(...args);
+    await invokeDirective(invokeOpts);
   } catch (e) {
     if (e instanceof FallbackSignal) return false;
     el.setAttribute('data-g-async', 'error');
     return false;
   }
 
-  await renderTemplateSwap(el, options);
+  if (options.template) {
+    await renderDirectiveTemplate(el, options.template as import('../types.js').TemplateOption);
+  }
   el.setAttribute('data-g-async', 'loaded');
 
-  if (fn.$context?.length) {
-    const state = getLocalState(el);
-    registerProvider(el, fn, state);
-  }
-
   return true;
-}
-
-/**
- * Swap element content to its template.
- *
- * @internal
- */
-async function renderTemplateSwap(
-  el: Element,
-  options: { template?: unknown; [key: string]: unknown }
-): Promise<void> {
-  if (!options.template) return;
-
-  const attrs = getTemplateAttrs(el);
-  let html: string;
-  if (typeof options.template === 'string') {
-    html = options.template as string;
-  } else {
-    const result = (options.template as (attrs: Record<string, string>, el: Element) => string | Promise<string>)(attrs, el);
-    html = result instanceof Promise ? await result : result;
-  }
-  el.innerHTML = html;
 }
 
 /**
