@@ -88,14 +88,14 @@ function getInputType(el: Element): string {
  * <textarea g-model="description"></textarea>
  * ```
  */
-export const model: Directive<['$expr', '$element', '$eval', '$rootState']> = function model(
+export const model: Directive<['$expr', '$element', '$eval', '$scope']> = function model(
   $expr: Expression,
   $element: Element,
   $eval: EvalFn,
-  $rootState: Record<string, unknown>
+  $scope: Record<string, unknown>
 ) {
   const inputType = getInputType($element);
-  const accessor = createAccessor($expr as string, $eval, $rootState);
+  const accessor = createAccessor($expr as string, $eval, $scope);
   const el = $element as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
   if (inputType === 'checkbox') {
@@ -151,6 +151,6 @@ export const model: Directive<['$expr', '$element', '$eval', '$rootState']> = fu
   }
 };
 
-model.$inject = ['$expr', '$element', '$eval', '$rootState'];
+model.$inject = ['$expr', '$element', '$eval', '$scope'];
 
 directive('g-model', model);

@@ -39,11 +39,11 @@ function parseOnExpression(expr: string): { event: string; handler: string } | n
  * <input g-on="keydown: onKey">
  * ```
  */
-export const on: Directive<['$expr', '$element', '$eval', '$rootState']> = function on(
+export const on: Directive<['$expr', '$element', '$eval', '$scope']> = function on(
   $expr: Expression,
   $element: Element,
   $eval: EvalFn,
-  $rootState: Record<string, unknown>
+  $scope: Record<string, unknown>
 ) {
   const parsed = parseOnExpression($expr as string);
   if (!parsed) {
@@ -58,13 +58,13 @@ export const on: Directive<['$expr', '$element', '$eval', '$rootState']> = funct
     // of "addTodo()"), call it with the state as 'this' context and event as arg.
     const result = $eval(handlerExpr as Expression);
     if (typeof result === 'function') {
-      result.call($rootState, event);
+      result.call($scope, event);
     }
   };
 
   $element.addEventListener(eventName, handler);
 };
 
-on.$inject = ['$expr', '$element', '$eval', '$rootState'];
+on.$inject = ['$expr', '$element', '$eval', '$scope'];
 
 directive('g-on', on);
