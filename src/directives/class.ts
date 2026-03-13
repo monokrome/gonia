@@ -27,17 +27,35 @@ export const cclass: Directive<['$expr', '$element', '$eval']> = function cclass
   $eval: EvalFn
 ) {
   effect(() => {
-    const classObj = $eval<Record<string, boolean>>($expr);
+    const value = $eval<string | string[] | Record<string, boolean>>($expr);
 
-    if (classObj === null || classObj === undefined) {
+    if (value === null || value === undefined) {
       return;
     }
 
-    if (typeof classObj !== 'object') {
+    if (typeof value === 'string') {
+      for (const name of value.split(/\s+/).filter(Boolean)) {
+        $element.classList.add(name);
+      }
       return;
     }
 
-    for (const [className, shouldAdd] of Object.entries(classObj)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === 'string') {
+          for (const name of item.split(/\s+/).filter(Boolean)) {
+            $element.classList.add(name);
+          }
+        }
+      }
+      return;
+    }
+
+    if (typeof value !== 'object') {
+      return;
+    }
+
+    for (const [className, shouldAdd] of Object.entries(value)) {
       if (shouldAdd) {
         $element.classList.add(className);
       } else {
