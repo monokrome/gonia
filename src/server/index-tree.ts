@@ -67,21 +67,11 @@ export function getSelector(localRegistry?: DirectiveRegistry): string {
   selectors.push('[g-scope]');
   // Match common g-bind:* attributes for dynamic binding
   // These need to be indexed so their expressions can be evaluated with proper scope
-  // Note: happy-dom doesn't need colon escaping (and escaped colons don't work)
-  selectors.push('[g-bind:class]');
-  selectors.push('[g-bind:style]');
-  selectors.push('[g-bind:href]');
-  selectors.push('[g-bind:src]');
-  selectors.push('[g-bind:id]');
-  selectors.push('[g-bind:value]');
-  selectors.push('[g-bind:disabled]');
-  selectors.push('[g-bind:checked]');
-  selectors.push('[g-bind:placeholder]');
-  selectors.push('[g-bind:title]');
-  selectors.push('[g-bind:alt]');
-  selectors.push('[g-bind:name]');
-  selectors.push('[g-bind:type]');
-  // Note: Can't do wildcard for data-* attributes in CSS, but hasBindAttributes handles them
+  // Colons must be escaped in CSS selectors (g-bind\:class)
+  const bindAttrs = ['class', 'style', 'href', 'src', 'id', 'value', 'disabled', 'checked', 'placeholder', 'title', 'alt', 'name', 'type'];
+  for (const attr of bindAttrs) {
+    selectors.push(`[g-bind\\:${attr}]`);
+  }
 
   return selectors.join(',');
 }
