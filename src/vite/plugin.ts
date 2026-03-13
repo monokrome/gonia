@@ -369,7 +369,7 @@ function generateImports(
       let modulePath = custom.module;
 
       // Make path relative to current file
-      if (modulePath.startsWith('/') || modulePath.match(/^[a-zA-Z]:\\/)) {
+      if (modulePath.startsWith('/') || modulePath.match(/^[a-zA-Z]:[/\\]/)) {
         const relPath = relative(currentFile.replace(/[/\\][^/\\]+$/, ''), modulePath);
         modulePath = relPath.startsWith('.') ? relPath : './' + relPath;
         // Normalize to forward slashes and remove .ts extension for import
