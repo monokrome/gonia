@@ -14,6 +14,7 @@ let activeEffect: Effect | null = null;
 let activeScope: EffectScope | null = null;
 const targetMap = new WeakMap<object, Map<string | symbol, Set<Effect>>>();
 const effectDeps = new Map<Effect, Set<Set<Effect>>>();
+const proxyCache = new WeakMap<object, object>();
 
 /**
  * A scope that groups effects for collective disposal.
@@ -123,7 +124,10 @@ function registerWithScope(stopFn: () => void): void {
  * ```
  */
 export function reactive<T extends object>(target: T): T {
-  return new Proxy(target, {
+  const cached = proxyCache.get(target);
+  if (cached) return cached as T;
+
+  const proxy = new Proxy(target, {
     get(obj, key, receiver) {
       track(obj, key);
       const value = Reflect.get(obj, key, receiver);
@@ -149,6 +153,9 @@ export function reactive<T extends object>(target: T): T {
       return result;
     }
   });
+
+  proxyCache.set(target, proxy);
+  return proxy;
 }
 
 /**
