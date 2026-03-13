@@ -12,7 +12,7 @@
 import { directive, Directive, Expression, EvalFn } from '../types.js';
 import { effect } from '../reactivity.js';
 import { resolveContext } from '../context-registry.js';
-import { SlotContentContext, SlotContent } from './template.js';
+import { SlotContentContext } from './template.js';
 
 /**
  * Slot directive for content transclusion.
@@ -41,49 +41,42 @@ import { SlotContentContext, SlotContent } from './template.js';
  * <slot></slot>
  * ```
  */
-export const slot: Directive<['$expr', '$element', '$eval', typeof SlotContentContext]> = function slot(
+export const slot: Directive<['$expr', '$element', '$eval']> = function slot(
   $expr: Expression,
   $element: Element,
-  $eval: EvalFn,
-  $slotContent: SlotContent | undefined
+  $eval: EvalFn
 ) {
-  // Determine slot name
-  // If expr is empty, check for name attribute, otherwise use 'default'
   const getName = (): string => {
     if ($expr && String($expr).trim()) {
-      // Dynamic slot name from expression
       return String($eval($expr));
     }
-    // Static slot name from attribute or default
     return $element.getAttribute('name') ?? 'default';
   };
 
   const transclude = () => {
     const name = getName();
+    const content = resolveContext($element, SlotContentContext, true);
 
-    // SlotContentContext is injected via DI
-    if (!$slotContent) {
+    if (!content) {
       return;
     }
 
-    const slotContent = $slotContent.slots.get(name);
+    const slotContent = content.slots.get(name);
 
     if (slotContent) {
       $element.innerHTML = slotContent;
     }
   };
 
-  // If expression is provided, make it reactive
   if ($expr && String($expr).trim()) {
     effect(transclude);
   } else {
-    // Static slot name - just run once
     transclude();
   }
 };
 slot.$inject = ['$expr', '$element', '$eval'];
 
-directive('g-slot', slot, { using: [SlotContentContext] });
+directive('g-slot', slot);
 
 /**
  * Process native <slot> elements.
