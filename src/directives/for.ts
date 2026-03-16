@@ -6,7 +6,7 @@
 
 import { directive, Directive, DirectivePriority, Expression, EvalFn, Mode } from '../types.js';
 import { effect, createEffectScope, EffectScope } from '../reactivity.js';
-import { processElementTree, FOR_PROCESSED_ATTR } from '../process.js';
+import { processElementTree, FOR_PROCESSED_ATTR, PROCESSED_ATTR } from '../process.js';
 
 // Re-export so existing consumers aren't broken
 export { FOR_PROCESSED_ATTR } from '../process.js';
@@ -256,6 +256,7 @@ export const cfor: Directive<['$expr', '$element', '$eval', '$scope', '$mode']> 
     templateWrapper.content.appendChild(templateContent);
 
     parent.replaceChild(templateWrapper, $element);
+    templateWrapper.setAttribute(PROCESSED_ATTR, '');
 
     setupReactiveLoop(templateContent, parent, templateWrapper, parsed, $eval, $scope);
   }

@@ -572,7 +572,7 @@ function setupRootScope(
   parentScope: Record<string, unknown>,
   mode: Mode,
   options: ProcessOptions
-): Record<string, unknown> {
+): { scope: Record<string, unknown>; detached: boolean } {
   el.setAttribute(PROCESSED_ATTR, '');
 
   const prepared = prepareElementScope(el, parentScope, mode, {
@@ -589,7 +589,7 @@ function setupRootScope(
           : existingScope)
       : createScope(parentScope, scopeAdditions);
     setElementScope(el, scope);
-    return scope;
+    return { scope, detached: false };
   }
 
   const { scope, ctx, directives } = prepared;
@@ -601,7 +601,7 @@ function setupRootScope(
     applyElementBindings(el, ctx, mode);
   }
 
-  return scope;
+  return { scope, detached };
 }
 
 /**
@@ -626,7 +626,14 @@ export function processElementTree(
   mode: Mode,
   options: ProcessOptions = {}
 ): void {
-  const scope = setupRootScope(el, parentScope, mode, options);
+  const { scope, detached } = setupRootScope(el, parentScope, mode, options);
+
+  // If a structural directive detached the root (e.g., g-for replaced it),
+  // skip subtree processing — the directive handles descendants internally.
+  if (detached) {
+    return;
+  }
+
   processSubtree(el, scope, mode);
 }
 
