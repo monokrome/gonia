@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '../src/server/render.js';
 import { directive, clearDirectives, Directive } from '../src/types.js';
-import { resetAsyncIdCounter } from '../src/async.js';
 
 describe('async SSR: await mode', () => {
   beforeEach(() => {
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   it('should run async fn and render template (default ssr mode)', async () => {
@@ -158,7 +156,6 @@ describe('async SSR: await mode', () => {
 describe('async SSR: fallback mode', () => {
   beforeEach(() => {
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   it('should render fallback without running fn', async () => {
@@ -208,7 +205,6 @@ describe('async SSR: fallback mode', () => {
 describe('async SSR: stream mode', () => {
   beforeEach(() => {
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   it('should render fallback with streaming attributes', async () => {

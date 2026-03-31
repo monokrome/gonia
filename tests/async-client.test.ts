@@ -3,14 +3,12 @@ import { render } from '../src/server/render.js';
 import { init, resetHydration } from '../src/client/hydrate.js';
 import { directive, clearDirectives, Directive } from '../src/types.js';
 import { clearRootScope, clearElementScopes } from '../src/scope.js';
-import { resetAsyncIdCounter } from '../src/async.js';
 import { applyGlobals, cleanupGlobals } from './test-globals.js';
 
 describe('async client: hydrate loaded (await mode)', () => {
   beforeEach(() => {
     applyGlobals();
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   afterEach(() => {
@@ -58,7 +56,6 @@ describe('async client: hydrate pending (fallback mode)', () => {
   beforeEach(() => {
     applyGlobals();
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   afterEach(() => {
@@ -103,7 +100,6 @@ describe('async client: pure client (no SSR)', () => {
   beforeEach(() => {
     applyGlobals();
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   afterEach(() => {
@@ -142,7 +138,6 @@ describe('async client: $fallback injectable', () => {
   beforeEach(() => {
     applyGlobals();
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   afterEach(() => {

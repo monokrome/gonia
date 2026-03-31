@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { directive, clearDirectives, Directive } from '../src/types.js';
-import { resetAsyncIdCounter } from '../src/async.js';
 import { renderStream } from '../src/server/stream.js';
 
 async function collectStream(stream: ReadableStream<string>): Promise<string[]> {
@@ -19,7 +18,6 @@ async function collectStream(stream: ReadableStream<string>): Promise<string[]> 
 describe('renderStream', () => {
   beforeEach(() => {
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   it('should stream initial HTML followed by replacement scripts', async () => {

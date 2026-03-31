@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { isAsyncFunction, generateAsyncId, resetAsyncIdCounter, FallbackSignal } from '../src/async.js';
+import { isAsyncFunction, FallbackSignal } from '../src/async.js';
 
 describe('isAsyncFunction', () => {
   it('should return true for async functions', () => {
@@ -25,25 +25,6 @@ describe('isAsyncFunction', () => {
   it('should return false for functions that return a promise', () => {
     const fn = () => Promise.resolve();
     expect(isAsyncFunction(fn)).toBe(false);
-  });
-});
-
-describe('generateAsyncId', () => {
-  beforeEach(() => {
-    resetAsyncIdCounter();
-  });
-
-  it('should generate sequential IDs', () => {
-    expect(generateAsyncId()).toBe('g-async-0');
-    expect(generateAsyncId()).toBe('g-async-1');
-    expect(generateAsyncId()).toBe('g-async-2');
-  });
-
-  it('should reset counter', () => {
-    generateAsyncId();
-    generateAsyncId();
-    resetAsyncIdCounter();
-    expect(generateAsyncId()).toBe('g-async-0');
   });
 });
 
