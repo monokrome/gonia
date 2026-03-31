@@ -6,7 +6,6 @@
 
 import { Directive, Expression, FallbackOption } from '../types.js';
 import { getTemplateAttrs } from '../template-utils.js';
-import { generateAsyncId } from '../async.js';
 import { ContextKey } from '../context-registry.js';
 
 /**
@@ -74,11 +73,11 @@ export async function renderFallback(
   el.innerHTML = fallbackHtml;
 
   if (ssrMode === 'stream') {
-    const asyncId = generateAsyncId();
     el.setAttribute('data-g-async', 'streaming');
-    el.setAttribute('data-g-async-id', asyncId);
 
     if (streamCtx) {
+      const asyncId = `g-async-${streamCtx.streamPending.length}`;
+      el.setAttribute('data-g-async-id', asyncId);
       streamCtx.streamPending.push({
         asyncId,
         el,
