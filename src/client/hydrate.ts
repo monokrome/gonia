@@ -35,7 +35,7 @@ export type { ServiceRegistry } from '../resolver-config.js';
 /** Cached selector string */
 let cachedSelector: string | null = null;
 
-/** Whether init() has been called */
+/** Whether hydrate() has been called */
 let initialized = false;
 
 /** Registered services */
@@ -220,12 +220,12 @@ function getCustomElementSelector(): string {
  *
  * @internal
  */
-async function processDirectiveElements(): Promise<void> {
+async function processDirectiveElements(root: Element | Document): Promise<void> {
   const selector = getCustomElementSelector();
   if (!selector) return;
 
   // Get all custom elements in document order (parents before children)
-  const elements = document.querySelectorAll(selector);
+  const elements = root.querySelectorAll(selector);
 
   for (const el of elements) {
     // Skip if already processed
@@ -426,9 +426,11 @@ function syncRegistryToGlobal(registry: DirectiveRegistry): void {
  *
  * @param registry - The directive registry
  */
-export async function init(
+export async function hydrate(
+  root?: Element | Document,
   registry?: DirectiveRegistry
 ): Promise<void> {
+  const rootEl = root ?? document;
   const reg = registry ?? getDefaultRegistry();
   cachedSelector = null;
 
@@ -440,14 +442,14 @@ export async function init(
 
   // Process custom element directives first (those with templates or scope)
   // This ensures templates are rendered and scopes exist before child directives run
-  await processDirectiveElements();
+  await processDirectiveElements(rootEl);
 
   const selector = getSelector(reg);
 
-  // Process existing elements synchronously, collecting promises from async directives.
+  // Process existing elements, collecting promises from async directives.
   // Note: We collect elements first, but some may be removed during processing
   // (e.g., g-for removes its template). Check isConnected before processing.
-  const elements = document.querySelectorAll(selector);
+  const elements = rootEl.querySelectorAll(selector);
   const promises: Promise<void>[] = [];
 
   for (const el of elements) {
@@ -480,7 +482,8 @@ export async function init(
     }
   });
 
-  observer.observe(document.body, { childList: true, subtree: true });
+  const observeTarget = rootEl instanceof Element ? rootEl : document.body;
+  observer.observe(observeTarget, { childList: true, subtree: true });
 
   // Streaming hydration hook: called by inline scripts from renderStream()
   if (typeof window !== 'undefined') {
@@ -492,21 +495,6 @@ export async function init(
   initialized = true;
 }
 
-/**
- * Hydrate server-rendered HTML.
- *
- * @remarks
- * Alias for {@link init}. Use when hydrating SSR output.
- */
-export const hydrate = init;
-
-/**
- * Mount the framework on client-rendered HTML.
- *
- * @remarks
- * Alias for {@link init}. Use for pure client-side rendering.
- */
-export const mount = init;
 
 /**
  * Reset hydration state for testing.

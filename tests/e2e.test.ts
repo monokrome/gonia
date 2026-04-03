@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, registerDirective as registerServerDirective } from '../src/server/render.js';
-import { init, resetHydration } from '../src/client/hydrate.js';
+import { hydrate, resetHydration } from '../src/client/hydrate.js';
 import { directive, clearDirectives, Directive } from '../src/types.js';
 import { clearRootScope, clearElementScopes } from '../src/scope.js';
 import { text } from '../src/directives/text.js';
@@ -261,7 +261,7 @@ describe('E2E: Hydration preserves SSR content', () => {
     document.body.innerHTML = `<app>${ssrHtml}</app>`;
 
     // Hydrate
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     // Content should still be "Hello World", not duplicated or empty
@@ -299,7 +299,7 @@ describe('E2E: Hydration preserves SSR content', () => {
     const beforeCount = document.querySelectorAll('li').length;
 
     // Hydrate
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     // After hydration, should have same number of items (2 rendered + 1 in template)
@@ -329,7 +329,7 @@ describe('E2E: Hydration preserves SSR content', () => {
 
     document.body.innerHTML = `<app>${ssrHtml}</app>`;
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const p = document.querySelector('p') as HTMLElement;
@@ -367,7 +367,7 @@ describe('E2E: Hydration preserves SSR content', () => {
     expect(spanBefore).toBeTruthy();
 
     // Hydrate
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     // The same DOM node should still be in the tree (not replaced by innerHTML)
@@ -400,7 +400,7 @@ describe('E2E: Hydration preserves SSR content', () => {
 
     document.body.innerHTML = ssrHtml;
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     // Marker must be gone after hydration
@@ -426,7 +426,7 @@ describe('E2E: Hydration preserves SSR content', () => {
     // No SSR — element starts empty, no data-g-prerendered marker
     document.body.innerHTML = '<client-widget></client-widget>';
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const span = document.querySelector('client-widget span')!;
@@ -451,7 +451,7 @@ describe('E2E: Hydration preserves SSR content', () => {
 
     document.body.innerHTML = `<app>${ssrHtml}</app>`;
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const button = document.querySelector('button')!;
@@ -489,7 +489,7 @@ describe('E2E: Client hydration initialization', () => {
 
     document.body.innerHTML = '<test-provider><span g-text="message"></span></test-provider>';
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const span = document.querySelector('span')!;
@@ -505,7 +505,7 @@ describe('E2E: Client hydration initialization', () => {
 
     document.body.innerHTML = '<test-provider><p g-show="visible">Content</p></test-provider>';
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const p = document.querySelector('p') as HTMLElement;
@@ -521,7 +521,7 @@ describe('E2E: Client hydration initialization', () => {
 
     document.body.innerHTML = '<test-provider><button g-class="{ active: isActive }">Click</button></test-provider>';
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const button = document.querySelector('button')!;
@@ -537,7 +537,7 @@ describe('E2E: Client hydration initialization', () => {
 
     document.body.innerHTML = '<test-provider><ul><li g-for="item in items" g-text="item"></li></ul></test-provider>';
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const items = document.querySelectorAll('li:not([data-g-for-template])');
@@ -575,7 +575,7 @@ describe('E2E: assign option', () => {
 
     document.body.innerHTML = '<styled-component><div g-class="{ [$styles.container]: true }"></div></styled-component>';
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const div = document.querySelector('div')!;
@@ -593,7 +593,7 @@ describe('E2E: assign option', () => {
 
     document.body.innerHTML = '<config-component><span g-text="$config.greeting"></span></config-component>';
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const span = document.querySelector('span')!;
@@ -612,7 +612,7 @@ describe('E2E: assign option', () => {
 
     document.body.innerHTML = '<multi-assign-component><span g-text="$theme.mode"></span></multi-assign-component>';
 
-    await init();
+    await hydrate();
     await new Promise(r => setTimeout(r, 10));
 
     const span = document.querySelector('span')!;
