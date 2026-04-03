@@ -10,6 +10,7 @@ import { Mode, Directive, DirectiveOptions, Expression, EvalFn } from './types.j
 import { resolveDependencies } from './inject.js';
 import { findAncestor } from './dom.js';
 import { resolveContext, ContextKey } from './context-registry.js';
+import { registerCleanup, runCleanups } from './teardown.js';
 
 /** WeakMap to store element scopes */
 let elementScopes = new WeakMap<Element, Record<string, unknown>>();
@@ -180,13 +181,19 @@ export function registerDirectiveElement(
       const args = resolveDependencies(fn, '', this, ctx.eval.bind(ctx), config, options.using);
       const result = fn(...args);
 
-      // Handle async directives
-      if (result instanceof Promise) {
-        result.catch(err => console.error(`Error in ${name}:`, err));
+      if (typeof result === 'function') {
+        registerCleanup(this, result as () => void);
+      } else if (result instanceof Promise) {
+        result.then((resolved) => {
+          if (typeof resolved === 'function') {
+            registerCleanup(this, resolved as () => void);
+          }
+        }).catch(err => console.error(`Error in ${name}:`, err));
       }
     }
 
     disconnectedCallback() {
+      runCleanups(this);
       removeElementScope(this);
     }
   });

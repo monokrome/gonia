@@ -25,6 +25,7 @@ import { applyAssigns, directiveNeedsScope } from './directive-utils.js';
 import { getBindAttributes, applyBindValue, processBindAttributesOnce } from './bind-utils.js';
 import { decodeHTMLEntities, getTemplateAttrs } from './template-utils.js';
 import { createCustomResolver, createClientResolverConfig, createServerResolverConfig, ServiceRegistry } from './resolver-config.js';
+import { registerCleanup } from './teardown.js';
 
 /** Attribute used to mark elements processed by g-for */
 export const FOR_PROCESSED_ATTR = 'data-g-for-processed';
@@ -177,13 +178,24 @@ export function invokeDirective(options: InvokeDirectiveOptions): void | Promise
     : createClientResolverConfig(el, () => scope, services ?? moduleServices);
 
   const args = resolveDependencies(fn, expr, el, ctx.eval.bind(ctx), config, using);
-  const result = (fn as (...a: unknown[]) => void | Promise<void>)(...args);
+  const result = (fn as (...a: unknown[]) => unknown)(...args);
 
   if (fn.$context?.length) {
     registerProvider(el, fn, scope);
   }
 
-  return result;
+  if (typeof result === 'function') {
+    registerCleanup(el, result as () => void);
+    return;
+  }
+
+  if (result instanceof Promise) {
+    return (result as Promise<unknown>).then((resolved) => {
+      if (typeof resolved === 'function') {
+        registerCleanup(el, resolved as () => void);
+      }
+    });
+  }
 }
 
 /**

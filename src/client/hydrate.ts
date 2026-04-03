@@ -13,6 +13,7 @@ import { ContextKey } from '../context-registry.js';
 import { applyAssigns } from '../directive-utils.js';
 import { getTemplateAttrs } from '../template-utils.js';
 import { ServiceRegistry } from '../resolver-config.js';
+import { runCleanupsRecursive } from '../teardown.js';
 
 // Built-in directives
 import { text } from '../directives/text.js';
@@ -345,6 +346,15 @@ async function processAsyncDirectiveElement(
     await renderClientFallback(el, options);
     el.setAttribute('data-g-async', 'pending');
 
+    // Yield to browser paint so fallback is visible before async work begins
+    await new Promise<void>(resolve => {
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => resolve());
+      } else {
+        setTimeout(resolve, 0);
+      }
+    });
+
     await runAsyncAndSwap(el, fn, scope, invokeOpts, options);
   }
 }
@@ -478,6 +488,10 @@ export async function hydrate(
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
         processNode(node as Element, selector);
+      }
+      for (const node of mutation.removedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        runCleanupsRecursive(node as Element);
       }
     }
   });

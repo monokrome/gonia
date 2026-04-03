@@ -189,3 +189,72 @@ describe('async client: $fallback injectable', () => {
     expect(widget?.getAttribute('data-g-async')).toBe('error');
   });
 });
+
+describe('async client: pure client (no SSR)', () => {
+  beforeEach(() => {
+    applyGlobals();
+    clearDirectives();
+    resetAsyncIdCounter();
+  });
+
+  afterEach(() => {
+    clearDirectives();
+    clearRootScope();
+    clearElementScopes();
+    resetHydration();
+    cleanupGlobals();
+  });
+
+  it('should show fallback then swap to template on success', async () => {
+    let resolveAsync: () => void;
+    const pending = new Promise<void>(r => { resolveAsync = r; });
+
+    const asyncFn: Directive = async ($scope: Record<string, unknown>) => {
+      await pending;
+      $scope.loaded = true;
+    };
+    asyncFn.$inject = ['$scope'];
+
+    directive('lazy-widget', asyncFn, {
+      scope: true,
+      fallback: '<p>Loading...</p>',
+      template: '<div class="content">Done</div>',
+    });
+
+    document.body.innerHTML = '<lazy-widget></lazy-widget>';
+    const hydratePromise = hydrate();
+
+    // Allow microtasks to process so fallback renders
+    await new Promise(r => setTimeout(r, 0));
+
+    const widget = document.querySelector('lazy-widget')!;
+    expect(widget.getAttribute('data-g-async')).toBe('pending');
+    expect(widget.innerHTML).toContain('Loading...');
+
+    resolveAsync!();
+    await hydratePromise;
+
+    expect(widget.getAttribute('data-g-async')).toBe('loaded');
+    expect(widget.innerHTML).toContain('content');
+  });
+
+  it('should keep fallback when async directive throws', async () => {
+    const asyncFn: Directive = async () => {
+      throw new Error('network failure');
+    };
+    asyncFn.$inject = [];
+
+    directive('fail-widget', asyncFn, {
+      scope: true,
+      fallback: '<p>Fallback</p>',
+      template: '<div>Success</div>',
+    });
+
+    document.body.innerHTML = '<fail-widget></fail-widget>';
+    await hydrate();
+
+    const widget = document.querySelector('fail-widget')!;
+    expect(widget.getAttribute('data-g-async')).toBe('error');
+    expect(widget.innerHTML).toContain('Fallback');
+  });
+});
