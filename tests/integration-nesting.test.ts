@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { init, resetHydration } from '../src/client/hydrate.js';
+import { hydrate, resetHydration } from '../src/client/hydrate.js';
 import { directive, clearDirectives, Directive } from '../src/types.js';
 import { clearRootScope, clearElementScopes } from '../src/scope.js';
 import { text } from '../src/directives/text.js';
@@ -63,7 +63,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const labels = document.querySelectorAll('.label');
@@ -97,7 +97,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const combos = document.querySelectorAll('.combo[data-g-for-processed]');
@@ -126,7 +126,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelectorAll('.cell[data-g-for-processed]').length).toBe(2);
@@ -168,7 +168,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const cells = document.querySelectorAll('.cell[data-g-for-processed]');
@@ -196,7 +196,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const spans = document.querySelectorAll('span[data-g-for-processed]');
@@ -221,7 +221,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const spans = document.querySelectorAll('span[data-g-for-processed]');
@@ -246,7 +246,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelectorAll('span[data-g-for-processed]').length).toBe(0);
@@ -284,7 +284,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const spans = document.querySelectorAll('span[data-g-if-processed]');
@@ -317,7 +317,7 @@ describe('Integration: nested directive scopes', () => {
         </parent-dir>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelector('.parent-read')!.textContent).toBe('from-parent');
@@ -346,7 +346,7 @@ describe('Integration: nested directive scopes', () => {
         </outer-dir>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelector('.outer-read')!.textContent).toBe('parent-value');
@@ -388,7 +388,7 @@ describe('Integration: nested directive scopes', () => {
         </gp-dir>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelector('.level')!.textContent).toBe('child');
@@ -420,7 +420,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelectorAll('.tag[data-g-for-processed]').length).toBe(3);
@@ -460,7 +460,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelectorAll('.col[data-g-for-processed]').length).toBe(6);
@@ -491,7 +491,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelectorAll('.col[data-g-for-processed]').length).toBe(1);
@@ -531,7 +531,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const buttons = document.querySelectorAll('.btn[data-g-for-processed]');
@@ -560,7 +560,7 @@ describe('Integration: nested directive scopes', () => {
         </counter-app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       expect(document.querySelector('.count')!.textContent).toBe('0');
@@ -591,7 +591,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const items = document.querySelectorAll('.idx[data-g-for-processed]');
@@ -623,7 +623,7 @@ describe('Integration: nested directive scopes', () => {
         </app>
       `;
 
-      await init();
+      await hydrate();
       await tick();
 
       const names = document.querySelectorAll('.name');

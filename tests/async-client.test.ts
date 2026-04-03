@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render } from '../src/server/render.js';
-import { init, resetHydration } from '../src/client/hydrate.js';
+import { hydrate, resetHydration } from '../src/client/hydrate.js';
 import { directive, clearDirectives, Directive } from '../src/types.js';
 import { clearRootScope, clearElementScopes } from '../src/scope.js';
 import { resetAsyncIdCounter } from '../src/async.js';
@@ -45,7 +45,7 @@ describe('async client: hydrate loaded (await mode)', () => {
     // Client hydrates
     document.body.innerHTML = ssrHtml;
     fnCallCount = 0; // reset after SSR
-    await init();
+    await hydrate();
 
     // fn runs on client for reactivity setup
     expect(fnCallCount).toBe(1);
@@ -89,7 +89,7 @@ describe('async client: hydrate pending (fallback mode)', () => {
 
     // Client hydrates and swaps
     document.body.innerHTML = ssrHtml;
-    await init();
+    await hydrate();
 
     expect(document.body.innerHTML).toContain('Real content');
     expect(document.body.innerHTML).not.toContain('Loading...');
@@ -128,7 +128,7 @@ describe('async client: pure client (no SSR)', () => {
 
     // No SSR - pure client
     document.body.innerHTML = '<client-widget></client-widget>';
-    await init();
+    await hydrate();
 
     // After init, the template should be rendered
     expect(document.body.innerHTML).toContain('Client loaded');
@@ -166,7 +166,7 @@ describe('async client: $fallback injectable', () => {
     });
 
     document.body.innerHTML = '<fb-widget></fb-widget>';
-    await init();
+    await hydrate();
 
     // Fallback should remain because $fallback() was called
     expect(document.body.innerHTML).toContain('Fallback stays');
@@ -188,7 +188,7 @@ describe('async client: $fallback injectable', () => {
     // SSR rendered fallback
     const ssrHtml = await render('<error-widget></error-widget>', {}, new Map(), undefined);
     document.body.innerHTML = '<error-widget data-g-async="pending"><div>Error fallback</div></error-widget>';
-    await init();
+    await hydrate();
 
     const widget = document.querySelector('error-widget');
     expect(widget?.getAttribute('data-g-async')).toBe('error');
