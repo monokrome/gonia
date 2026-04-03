@@ -9,7 +9,7 @@
  */
 
 export { Mode, Expression, Context, Directive, directive, getDirective, getDirectiveNames, clearDirectives, configureDirective } from './types.js';
-export type { DirectiveMeta, RenderOptions, FallbackOption } from './types.js';
+export type { DirectiveMeta, ScopedDirective, RenderOptions, FallbackOption } from './types.js';
 export { isAsyncFunction, FallbackSignal } from './async.js';
 export { createContext, createChildContext } from './context.js';
 export { reactive, effect, createScope, createEffectScope } from './reactivity.js';
@@ -27,9 +27,12 @@ export {
   createContextKey,
   registerContext,
   resolveContext,
+  requireContext,
   hasContext,
   removeContext,
   clearContexts
 } from './context-registry.js';
 export type { ContextKey } from './context-registry.js';
+export { registerCleanup } from './teardown.js';
+export type { CleanupFn } from './teardown.js';
 export * as directives from './directives/index.js';

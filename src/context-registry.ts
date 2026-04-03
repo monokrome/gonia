@@ -140,6 +140,29 @@ export function resolveContext<T>(
 }
 
 /**
+ * Resolve a context value, throwing if not found.
+ *
+ * @param el - The element to start searching from
+ * @param key - The context key to look for
+ * @param includeSelf - Whether to check `el` itself before walking ancestors
+ * @returns The context value
+ * @throws Error if the context is not found on any ancestor
+ */
+export function requireContext<T>(
+  el: Element,
+  key: ContextKey<T>,
+  includeSelf = false
+): T {
+  const value = resolveContext(el, key, includeSelf);
+  if (value === undefined) {
+    throw new Error(
+      `Required context "${key.name}" not found. Ensure an ancestor provides it via registerContext().`
+    );
+  }
+  return value;
+}
+
+/**
  * Check if a context is registered on an element.
  *
  * @param el - The element to check
