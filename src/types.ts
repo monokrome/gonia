@@ -91,20 +91,28 @@ type ContextKeyValue<K> = K extends ContextKey<infer V> ? V : never;
  * type Args = MapInjectables<['$element', '$scope']>;
  * // => [Element, Record<string, unknown>]
  *
+ * // With typed scope override
+ * type Args2 = MapInjectables<['$scope'], { $scope: { count: number } }>;
+ * // => [{ count: number }]
+ *
  * // With context keys
  * const MyContext = createContextKey<{ value: number }>('MyContext');
- * type Args2 = MapInjectables<['$element', typeof MyContext]>;
+ * type Args3 = MapInjectables<['$element', typeof MyContext]>;
  * // => [Element, { value: number }]
  * ```
  */
+type MergedRegistry<T> = {
+  [K in keyof InjectableRegistry]: K extends keyof T ? T[K] : InjectableRegistry[K];
+} & Omit<T, keyof InjectableRegistry>;
+
 export type MapInjectables<
   K extends readonly (string | ContextKey<unknown>)[],
-  T = InjectableRegistry
+  T extends Record<string, unknown> = {}
 > = {
   [I in keyof K]: K[I] extends ContextKey<unknown>
     ? ContextKeyValue<K[I]>
-    : K[I] extends keyof T
-      ? T[K[I]]
+    : K[I] extends keyof MergedRegistry<T>
+      ? MergedRegistry<T>[K[I]]
       : unknown
 };
 
@@ -277,7 +285,26 @@ export interface DirectiveMeta<T = InjectableRegistry> {
 export type Directive<
   K extends readonly (string | ContextKey<unknown>)[] = readonly (string & keyof InjectableRegistry)[],
   T extends Record<string, unknown> = {}
-> = ((...args: MapInjectables<K, InjectableRegistry & T>) => void | Promise<void>) & DirectiveMeta<InjectableRegistry & T>;
+> = ((...args: MapInjectables<K, T>) => void | (() => void) | Promise<void | (() => void)>) & DirectiveMeta<T>;
+
+/**
+ * Convenience type for directives with a typed scope.
+ *
+ * @typeParam K - Tuple of injectable names
+ * @typeParam S - The scope shape
+ *
+ * @example
+ * ```ts
+ * const counter: ScopedDirective<['$element', '$scope'], { count: number }> = ($el, $scope) => {
+ *   $scope.count = 0;
+ *   $el.addEventListener('click', () => $scope.count++);
+ * };
+ * ```
+ */
+export type ScopedDirective<
+  K extends readonly (string | ContextKey<unknown>)[],
+  S extends Record<string, unknown>
+> = Directive<K, { $scope: S }>;
 
 /**
  * Attributes passed to template functions.
