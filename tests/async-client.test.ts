@@ -194,7 +194,6 @@ describe('async client: pure client (no SSR)', () => {
   beforeEach(() => {
     applyGlobals();
     clearDirectives();
-    resetAsyncIdCounter();
   });
 
   afterEach(() => {
