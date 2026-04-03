@@ -25,14 +25,14 @@ state.count = 1; // Dependents are notified
 
 ### Effects
 
-The `effect()` function creates a reactive computation that re-runs when its dependencies change:
+The `effect()` function creates a reactive computation that re-runs when its dependencies change. It returns a cleanup function that stops the effect:
 
 ```typescript
 import { reactive, effect } from 'gonia';
 
 const state = reactive({ count: 0 });
 
-effect(() => {
+const stop = effect(() => {
   console.log('Count is:', state.count);
 });
 // Logs: "Count is: 0"
@@ -40,8 +40,10 @@ effect(() => {
 state.count = 1;
 // Logs: "Count is: 1"
 
+stop(); // Remove the effect
+
 state.count = 2;
-// Logs: "Count is: 2"
+// Nothing logged — effect was stopped
 ```
 
 Effects automatically track which reactive properties they access and re-run only when those specific properties change.
@@ -134,7 +136,7 @@ $scope.theme = 'dark';
 
 ## Creating Scopes
 
-Use `createScope()` for child scopes that inherit from parents:
+Use `createScope()` for child scopes that inherit from parents. The child is a Proxy that delegates reads for unknown keys to the parent while keeping its own additions in a local reactive object:
 
 ```typescript
 import { createScope, reactive } from 'gonia';
@@ -142,13 +144,15 @@ import { createScope, reactive } from 'gonia';
 const parent = reactive({ items: [1, 2, 3] });
 const child = createScope(parent, { item: 1, index: 0 });
 
-child.item;   // 1 (from child)
-child.items;  // [1, 2, 3] (from parent)
+child.item;   // 1 (from child's local additions)
+child.items;  // [1, 2, 3] (delegated to parent)
 ```
+
+This is the mechanism behind `g-for` — each loop iteration gets a child scope with its item/index variables while inheriting the parent's state.
 
 ## Effect Scopes
 
-Group effects together for batch cleanup:
+Group effects together for batch cleanup using `createEffectScope()`:
 
 ```typescript
 import { createEffectScope, effect } from 'gonia';
@@ -160,11 +164,23 @@ scope.run(() => {
   effect(() => { /* ... */ });
 });
 
+scope.active; // true — scope is running
+
 // Later: cleanup all effects in the scope
 scope.stop();
+
+scope.active; // false — all effects removed
 ```
 
-This is useful for components that create multiple effects and need to clean them up when unmounted.
+The `EffectScope` interface:
+
+| Property/Method | Type | Description |
+|-----------------|------|-------------|
+| `run(fn)` | `<T>(fn: () => T) => T` | Run function within this scope, capturing effects |
+| `stop()` | `() => void` | Dispose all effects created within this scope |
+| `active` | `boolean` | Whether the scope is still active |
+
+This is useful for directives that create multiple effects and need to clean them up when the element is removed.
 
 ## Computed Properties
 

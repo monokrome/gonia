@@ -27,6 +27,22 @@ const state = {
 const html = await render(template, state, new Map());
 ```
 
+### Render Options
+
+The `render()` function accepts an optional fourth argument for async directive behavior:
+
+```typescript
+interface RenderOptions {
+  timeout?: number;   // Global timeout in ms for async operations
+  maxDepth?: number;  // Max nesting depth for await mode (default: 10)
+}
+
+const html = await render(template, state, new Map(), {
+  timeout: 3000,
+  maxDepth: 5,
+});
+```
+
 ## SSR Output Format
 
 ### g-for Template Elements
@@ -141,6 +157,25 @@ app.get('/', async (req, res) => {
 
 app.listen(3000);
 ```
+
+## Streaming SSR
+
+`renderStream()` returns a `ReadableStream<string>` for progressive HTML delivery. Async directives with `ssr: 'stream'` render their fallback immediately, then stream a replacement `<script>` tag when the directive resolves.
+
+```typescript
+import { renderStream } from 'gonia/server';
+
+const stream = renderStream(template, state, new Map(), {
+  timeout: 5000,
+});
+```
+
+The stream emits:
+
+1. The initial HTML with fallback content in place of stream-mode directives
+2. For each resolved directive, an inline `<script>` that swaps the fallback with the rendered content
+
+Each streamed replacement script finds its target by `data-g-async-id`, swaps the innerHTML, and triggers client hydration if available via `window.__gonia_hydrate`.
 
 ## Static Site Generation
 

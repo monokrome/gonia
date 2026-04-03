@@ -345,7 +345,15 @@ When a template is applied to an element:
 
 ## Directive Options
 
-When registering a directive with `directive()`, the third argument is an options object:
+Register a directive with `directive()`:
+
+```typescript
+directive(name: string, fn: Directive | null, options?: DirectiveOptions);
+```
+
+- `name` — the directive or custom element name (e.g. `'g-highlight'`, `'my-card'`).
+- `fn` — the directive function, or `null` for template-only directives that have no runtime behavior.
+- `options` — optional configuration object described below.
 
 ```typescript
 directive('my-component', handler, { scope: true, template: '...' });
@@ -507,12 +515,14 @@ Usage:
 
 Directives are processed in priority order. Built-in priorities:
 
-| Priority | Directives |
-|----------|------------|
-| 1000 (STRUCTURAL) | `g-for`, `g-if` |
-| 0 (NORMAL) | All others |
+| Priority | Level | Directives |
+|----------|-------|------------|
+| 1100 | STRUCTURAL_CONDITIONAL | `g-if` |
+| 1000 | STRUCTURAL | `g-for` |
+| 500 | TEMPLATE | `g-template` |
+| 0 | NORMAL | All others |
 
-Structural directives run first because they may modify the DOM structure.
+Higher-priority directives run first. Structural directives run before others because they may add or remove elements from the DOM.
 
 ## Dependency Injection
 
@@ -604,7 +614,7 @@ counter.$inject = ['$scope', '$element'];
 | `$scope`      | Local reactive state object              |
 | `$rootState`  | Root reactive state (shared across tree) |
 | `$mode`       | Current mode (`'server'` or `'client'`)  |
-| `$templates`  | Template registry for `g-template`       |
+| `$templates`  | Template registry (`{ get(name: string): Promise<string> }`) for `g-template` |
 | `$fallback`   | Trigger fallback rendering (`() => never`) — see [Async Rendering](./async-rendering.md) |
 
 Custom dependencies can be provided via the `provide` directive option
