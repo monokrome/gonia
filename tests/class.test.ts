@@ -117,4 +117,74 @@ describe.each([
 
     expect(el.classList.contains('has-items')).toBe(true);
   });
+
+  it('should remove a toggled class when its condition flips to false', () => {
+    const state = reactive({ isOpen: true });
+    const ctx = createContext(mode, state);
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div');
+
+    cclass('{ open: isOpen }' as Expression, el, $eval);
+    expect(el.classList.contains('open')).toBe(true);
+
+    state.isOpen = false;
+    expect(el.classList.contains('open')).toBe(false);
+
+    state.isOpen = true;
+    expect(el.classList.contains('open')).toBe(true);
+  });
+
+  it('should treat array entries the same as top-level values', () => {
+    const state = reactive({ isOpen: false });
+    const ctx = createContext(mode, state);
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div');
+
+    cclass("['root', { open: isOpen }]" as Expression, el, $eval);
+
+    expect(el.classList.contains('root')).toBe(true);
+    expect(el.classList.contains('open')).toBe(false);
+
+    state.isOpen = true;
+    expect(el.classList.contains('root')).toBe(true);
+    expect(el.classList.contains('open')).toBe(true);
+
+    state.isOpen = false;
+    expect(el.classList.contains('root')).toBe(true);
+    expect(el.classList.contains('open')).toBe(false);
+  });
+
+  it('should toggle multiple conditional classes nested in an array', () => {
+    const state = reactive({ a: true, b: false });
+    const ctx = createContext(mode, state);
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div');
+
+    cclass("['static', { classA: a, classB: b }]" as Expression, el, $eval);
+
+    expect(el.classList.contains('static')).toBe(true);
+    expect(el.classList.contains('classA')).toBe(true);
+    expect(el.classList.contains('classB')).toBe(false);
+
+    state.a = false;
+    state.b = true;
+    expect(el.classList.contains('static')).toBe(true);
+    expect(el.classList.contains('classA')).toBe(false);
+    expect(el.classList.contains('classB')).toBe(true);
+  });
+
+  it('should not touch classes it was never told about', () => {
+    const state = reactive({ isOpen: true });
+    const ctx = createContext(mode, state);
+    $eval = ctx.eval.bind(ctx);
+    const el = document.createElement('div');
+    el.classList.add('managed-elsewhere');
+
+    cclass('{ open: isOpen }' as Expression, el, $eval);
+    expect(el.classList.contains('managed-elsewhere')).toBe(true);
+
+    state.isOpen = false;
+    expect(el.classList.contains('managed-elsewhere')).toBe(true);
+    expect(el.classList.contains('open')).toBe(false);
+  });
 });
