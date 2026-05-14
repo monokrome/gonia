@@ -9,6 +9,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +32,4 @@ jobs:
 
       - run: pnpm test
 
-      - run: pnpm publish --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: pnpm publish --no-git-checks --provenance
