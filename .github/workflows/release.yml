@@ -32,4 +32,6 @@ jobs:
 
       - run: pnpm test
 
-      - run: pnpm publish --no-git-checks --provenance
+      - run: npm install -g npm@latest
+
+      - run: npm publish --provenance
